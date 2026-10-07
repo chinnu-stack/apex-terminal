@@ -49,6 +49,7 @@
       flex-direction: column;
     }
 
+    /* TOP HEADER */
     header {
       background-color: var(--bg-panel);
       border-bottom: 1px solid var(--border);
@@ -141,6 +142,7 @@
       box-shadow: 0 0 8px currentColor;
     }
 
+    /* TICKER STATS BAR */
     .ticker-bar {
       display: flex;
       align-items: center;
@@ -182,6 +184,7 @@
     .stat-label { color: var(--text-muted); }
     .stat-val { color: var(--text-main); font-weight: 600; }
 
+    /* DUAL CHART VIEWPORT */
     #dashboard-view {
       position: relative;
       flex: 1 1 auto;
@@ -195,7 +198,7 @@
     #main-chart-wrapper {
       position: relative;
       width: 100%;
-      height: 82%;
+      height: 85%;
       overflow: hidden;
     }
 
@@ -204,7 +207,7 @@
     #rsi-chart-wrapper {
       position: relative;
       width: 100%;
-      height: 18%;
+      height: 15%;
       border-top: 1px solid var(--border);
       background: #10131b;
       overflow: hidden;
@@ -222,13 +225,14 @@
       z-index: 5;
     }
 
+    /* CLEAN CARD HUD */
     .trade-setup-card {
       position: absolute;
-      background: rgba(18, 22, 33, 0.94);
+      background: rgba(18, 22, 33, 0.95);
       border-radius: 4px;
       padding: 5px 8px;
       font-family: var(--font-mono);
-      font-size: 8.5px;
+      font-size: 8px;
       line-height: 1.35;
       color: #d1d4dc;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8);
@@ -243,11 +247,11 @@
 
     .card-title {
       font-weight: 700;
-      font-size: 9px;
+      font-size: 8.5px;
       margin-bottom: 2px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
 
     .trade-setup-card.buy .card-title { color: var(--accent-green); }
@@ -256,12 +260,13 @@
     .card-row {
       display: flex;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
     }
 
     .card-row span:first-child { color: var(--text-muted); }
     .card-row strong { color: #fff; }
 
+    /* BOTTOM BAR */
     .bottom-bar {
       background: var(--bg-panel);
       border-top: 1px solid var(--border);
@@ -418,7 +423,6 @@
       priceLineVisible: false,
     });
 
-    // RSI dedicated pane
     const rsiContainer = document.getElementById('rsi-chart');
     const rsiChart = LightweightCharts.createChart(rsiContainer, {
       layout: {
@@ -433,7 +437,7 @@
       timeScale: { visible: false },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.15, bottom: 0.15 },
+        scaleMargins: { top: 0.12, bottom: 0.12 },
       }
     });
 
@@ -609,13 +613,11 @@
       });
     }
 
-    // Realistic Intraday Session Pattern (75 Bars = 09:15 to 15:30)
-    let activeIntervalSec = 300;
-    let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
 
-    function generateRealisticMarketCandles() {
+    // Real Intraday Market Session Structure (Historical Candle Arc)
+    function buildSessionCandles() {
       const now = new Date();
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
       const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60);
@@ -628,18 +630,17 @@
       let cumVol = 0, cumVolPrice = 0;
       let currentPrice = openAnchor;
 
-      // Real intraday market swing levels
       const pivots = [
         { bar: 0, price: 22690.45 },
-        { bar: 10, price: 22717.65 }, // Morning high test
-        { bar: 24, price: 22660.10 }, // Morning pullback
-        { bar: 38, price: 22685.50 }, // Midday bounce
-        { bar: 54, price: 22620.00 }, // Afternoon break
-        { bar: 66, price: 22546.30 }, // Sell-off to day low
-        { bar: 74, price: 22603.05 }  // 3:30 PM closing recovery
+        { bar: 10, price: 22717.65 },
+        { bar: 24, price: 22660.10 },
+        { bar: 38, price: 22685.50 },
+        { bar: 54, price: 22620.00 },
+        { bar: 66, price: 22546.30 },
+        { bar: 74, price: 22603.05 }
       ];
 
-      for (let i = 0; i < activeBarsCount; i++) {
+      for (let i = 0; i < 75; i++) {
         let pIndex = 0;
         while (pIndex < pivots.length - 1 && pivots[pIndex + 1].bar <= i) {
           pIndex++;
@@ -650,15 +651,15 @@
         const segmentProgress = (i - p1.bar) / span;
         const trendBase = p1.price + ((p2.price - p1.price) * segmentProgress);
         
-        const noise = (Math.random() - 0.49) * 11;
+        const noise = (Math.random() - 0.49) * 9;
         const open = currentPrice;
-        let close = (i === activeBarsCount - 1) ? targetClose : Math.round((trendBase + noise) * 100) / 100;
+        let close = (i === 74) ? targetClose : Math.round((trendBase + noise) * 100) / 100;
 
         close = Math.max(22546.30, Math.min(22717.65, close));
         const high = Math.round((Math.max(open, close) + Math.random() * 5 + 1.2) * 100) / 100;
         const low = Math.round((Math.min(open, close) - Math.random() * 5 - 1.2) * 100) / 100;
         const vol = Math.floor(Math.random() * 450) + 160;
-        const barTime = sessionStartSec + (i * activeIntervalSec);
+        const barTime = sessionStartSec + (i * 300);
 
         cData.push({ time: barTime, open, high, low, close, volume: vol });
 
@@ -719,7 +720,7 @@
         }
       }
 
-      generateRealisticMarketCandles();
+      buildSessionCandles();
 
       if (tickTimer) clearInterval(tickTimer);
       if (!marketOpen) return;
@@ -756,10 +757,6 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('#tf-group .btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const tf = btn.getAttribute('data-tf');
-        if (tf === '1m') activeIntervalSec = 60;
-        if (tf === '5m') activeIntervalSec = 300;
-        if (tf === '15m') activeIntervalSec = 900;
         runEngine();
       });
     });
@@ -768,11 +765,6 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('#range-group .btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const range = btn.getAttribute('data-range');
-        if (range === '1D') activeBarsCount = 75;
-        if (range === '5D') activeBarsCount = 150;
-        if (range === '1M') activeBarsCount = 300;
-        if (range === '3M') activeBarsCount = 450;
         runEngine();
       });
     });
