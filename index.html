@@ -154,7 +154,7 @@
       box-shadow: 0 0 8px currentColor;
     }
 
-    /* INFO STATS TICKER BAR */
+    /* INFO TICKER BAR */
     .ticker-bar {
       display: flex;
       align-items: center;
@@ -189,7 +189,7 @@
       font-weight: 600;
     }
 
-    /* CHART CONTAINER & FLOATING LABELS */
+    /* CHART CONTAINER & LABELS */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
@@ -215,34 +215,33 @@
 
     .trade-box {
       position: absolute;
-      background: rgba(19, 23, 34, 0.92);
+      background: rgba(19, 23, 34, 0.94);
       border-radius: 4px;
-      padding: 5px 8px;
+      padding: 6px 9px;
       font-family: var(--font-mono);
       font-size: 9px;
-      line-height: 1.35;
+      line-height: 1.4;
       color: #d1d4dc;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
       transform: translate(-50%, -100%);
       pointer-events: none;
       white-space: nowrap;
       z-index: 6;
+      border: 1px solid var(--border);
     }
 
     .trade-box.buy {
-      border: 1px solid var(--accent-green);
       border-top: 3px solid var(--accent-green);
     }
 
     .trade-box.sell {
-      border: 1px solid var(--accent-red);
       border-top: 3px solid var(--accent-red);
     }
 
     .trade-title {
       font-weight: 700;
       font-size: 10px;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
       display: flex;
       align-items: center;
       gap: 4px;
@@ -254,7 +253,7 @@
     .trade-row {
       display: flex;
       justify-content: space-between;
-      gap: 8px;
+      gap: 12px;
     }
 
     /* BOTTOM BAR */
@@ -271,26 +270,25 @@
 
     .time-badge {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       color: #00f3ff;
       letter-spacing: 0.5px;
     }
 
-    /* MOBILE ADJUSTMENTS */
     @media screen and (orientation: landscape) and (max-height: 520px) {
       header {
         padding: 2px 8px;
-        min-height: 36px;
+        min-height: 34px;
       }
       .ticker-bar {
         padding: 2px 8px;
         font-size: 10px;
       }
       #chart-wrapper {
-        height: calc(100vh - 72px);
+        height: calc(100vh - 68px);
       }
       .bottom-bar {
-        min-height: 26px;
+        min-height: 24px;
         padding: 2px 8px;
       }
       .btn {
@@ -299,7 +297,7 @@
       }
       .trade-box {
         font-size: 8px;
-        padding: 3px 5px;
+        padding: 3px 6px;
       }
     }
   </style>
@@ -319,7 +317,7 @@
 
     <div class="header-right">
       <button class="action-btn" id="btn-refresh" title="Hard Refresh Dashboard">⟳ Refresh</button>
-      <button class="action-btn" id="btn-fullscreen" title="Toggle Fullscreen">⛶ Rotate</button>
+      <button class="action-btn" id="btn-rotate" title="Switch Landscape / Portrait">⛶ Rotate</button>
       <div class="status-badge" id="feed-status">
         <div class="live-dot" style="background:#f23645"></div> MARKET CLOSED
       </div>
@@ -357,7 +355,7 @@
   </div>
 
   <script>
-    // --- 24-HOUR RUNNING CLOCK (IST) ---
+    // --- RUNNING 24-HOUR IST CLOCK ---
     function updateClock() {
       const now = new Date();
       const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
@@ -448,7 +446,7 @@
     rsiSeries.createPriceLine({ price: 70, color: '#f23645', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OB 70' });
     rsiSeries.createPriceLine({ price: 30, color: '#089981', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OS 30' });
 
-    // --- INDICATORS MATH ---
+    // --- CONTINUOUS RSI MATH ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
@@ -478,6 +476,7 @@
 
     let activeSignals = [];
 
+    // --- UT BOT ENGINE & TRADE SIGNALS ---
     function calculateUTBot(candles, key = 1, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -539,18 +538,17 @@
       labelLayer.innerHTML = '';
       if (!activeSignals.length) return;
 
-      // Only display the 2 most recent signals to keep charts clean and readable
-      const visibleSignals = activeSignals.slice(-2);
+      const visibleSignals = activeSignals.slice(-3);
 
       visibleSignals.forEach(sig => {
         const x = chart.timeScale().timeToCoordinate(sig.time);
         const y = candleSeries.priceToCoordinate(sig.price);
 
-        if (x !== null && y !== null && x > 30 && x < chartContainer.clientWidth - 40) {
+        if (x !== null && y !== null && x > 20 && x < chartContainer.clientWidth - 30) {
           const box = document.createElement('div');
           box.className = `trade-box ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
-          const offsetY = isBuy ? y + 25 : y - 15;
+          const offsetY = isBuy ? y + 25 : y - 20;
 
           box.style.left = `${x}px`;
           box.style.top = `${offsetY}px`;
@@ -568,22 +566,17 @@
       });
     }
 
-    // --- SYNTHETIC INDIAN MARKET SESSION GENERATOR ---
+    // --- SESSION DATA GENERATOR (PINNED TO 09:15 IST) ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
 
     function generateMarketAlignedCandles() {
-      // Pin strictly to today's 09:15 AM IST
       const now = new Date();
-      const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
-      const year = istNow.getFullYear();
-      const month = istNow.getMonth();
-      const date = istNow.getDate();
-
-      // UTC timestamp representing 09:15 IST
-      const baseSessionStartSec = Math.floor(Date.UTC(year, month, date, 9 - 5, 15 - 30, 0) / 1000);
+      // Zero out to UTC day boundary and add 09:15:00 in seconds
+      const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
+      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // 09:15 AM IST
 
       let currentPrice = 25010.0;
       let cData = [];
@@ -598,7 +591,7 @@
         const high = Math.round((Math.max(open, close) + Math.random() * 8) * 100) / 100;
         const low = Math.round((Math.min(open, close) - Math.random() * 8) * 100) / 100;
         const vol = Math.floor(Math.random() * 350) + 120;
-        const barTime = baseSessionStartSec + (i * activeIntervalSec);
+        const barTime = sessionStartSec + (i * activeIntervalSec);
 
         cData.push({ time: barTime, open, high, low, close, volume: vol });
 
@@ -714,18 +707,34 @@
       });
     });
 
-    // --- BUTTON ACTIONS ---
+    // --- REFRESH ---
     document.getElementById('btn-refresh').addEventListener('click', () => {
       runEngine();
     });
 
-    document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
+    // --- REAL MOBILE ORIENTATION LOCK & ROTATE TOGGLE ---
+    document.getElementById('btn-rotate').addEventListener('click', async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape');
+          }
+        } else {
+          if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+          }
+          await document.exitFullscreen();
+        }
+      } catch (err) {
+        // Fallback for browsers with restricted auto-lock
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
       }
-      setTimeout(handleResize, 150);
+      setTimeout(handleResize, 200);
     });
 
     function handleResize() {
@@ -741,10 +750,10 @@
     }
 
     window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+    window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateLabelPositions());
 
-    // START
+    // STARTUP
     runEngine();
     setTimeout(handleResize, 100);
   </script>
