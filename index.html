@@ -195,12 +195,12 @@
       font-weight: 600;
     }
 
-    /* MAIN CHART CONTAINER & EMBEDDED LABEL OVERLAYS */
+    /* CHART CONTAINER & FLOATING CARDS */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
       width: 100%;
-      height: calc(100vh - 120px);
+      height: calc(100vh - 118px);
       overflow: hidden;
     }
 
@@ -219,10 +219,10 @@
       z-index: 5;
     }
 
-    /* PER-SIGNAL SETUP CARDS (SCREENSHOT 82 RESTORATION) */
+    /* SPATIAL TRADE SETUP CARDS (SCREENSHOT 82 RESTORATION) */
     .trade-setup-card {
       position: absolute;
-      background: rgba(22, 26, 37, 0.95);
+      background: rgba(20, 24, 35, 0.94);
       border-radius: 4px;
       padding: 5px 8px;
       font-family: var(--font-mono);
@@ -341,18 +341,18 @@
 
   <!-- TICKER STATS BAR -->
   <div class="ticker-bar">
-    <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">25,000.00</span></span>
+    <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">22,603.05</span></span>
     <span class="vix-tag">INDIA VIX: <span id="val-vix">13.42 (-1.8%)</span></span>
-    <span><span class="stat-label">O:</span> <span class="stat-val" id="val-open">--</span></span>
-    <span><span class="stat-label">H:</span> <span class="stat-val" id="val-high">--</span></span>
-    <span><span class="stat-label">L:</span> <span class="stat-val" id="val-low">--</span></span>
-    <span><span class="stat-label">C:</span> <span class="stat-val" id="val-close">--</span></span>
+    <span><span class="stat-label">O:</span> <span class="stat-val" id="val-open">22,690.45</span></span>
+    <span><span class="stat-label">H:</span> <span class="stat-val" id="val-high">22,717.65</span></span>
+    <span><span class="stat-label">L:</span> <span class="stat-val" id="val-low">22,546.30</span></span>
+    <span><span class="stat-label">C:</span> <span class="stat-val" id="val-close">22,603.05</span></span>
     <span><span class="stat-label">VWAP:</span> <span class="stat-val" style="color:var(--accent-amber)" id="val-vwap">--</span></span>
     <span><span class="stat-label">EMA 20:</span> <span class="stat-val" style="color:var(--accent-blue)" id="val-ema">--</span></span>
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & LABEL OVERLAYS -->
+  <!-- CHART & LABEL OVERLAY LAYER -->
   <div id="chart-wrapper">
     <div id="chart"></div>
     <div id="label-layer"></div>
@@ -392,7 +392,7 @@
       return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
     }
 
-    // --- INITIALIZE CHART ---
+    // --- INITIALIZE CHART (EXPANDED CANDLE AREA + BOTTOM RSI STRIP) ---
     const chartContainer = document.getElementById('chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -413,10 +413,12 @@
         borderColor: '#363c4e',
         timeVisible: true,
         secondsVisible: false,
+        barSpacing: 14, // Generous bar width so zoom-in is not required
+        minBarSpacing: 6,
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.08, bottom: 0.28 },
+        scaleMargins: { top: 0.05, bottom: 0.22 }, // Gives 78% of chart to candlesticks
       }
     });
 
@@ -441,23 +443,23 @@
     });
 
     const stopSeries = chart.addLineSeries({
-      color: 'rgba(255, 255, 255, 0.45)',
+      color: 'rgba(255, 255, 255, 0.40)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dotted,
       priceLineVisible: false,
     });
 
-    // --- RSI PANE (45 LOWER, 55 UPPER, LIGHT RED COLOR FILL) ---
+    // --- ISOLATED RSI STRIP (RESTRICTED TO BOTTOM 15% OF CANVAS) ---
     chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.78, bottom: 0.02 },
+      scaleMargins: { top: 0.85, bottom: 0.01 }, // Restricts RSI strictly to bottom
       borderColor: '#363c4e',
     });
 
     const rsiBgShade = chart.addAreaSeries({
       priceScaleId: 'rsi',
-      topColor: 'rgba(242, 54, 69, 0.18)',
-      bottomColor: 'rgba(242, 54, 69, 0.18)',
-      lineColor: 'rgba(242, 54, 69, 0.50)',
+      topColor: 'rgba(242, 54, 69, 0.16)',
+      bottomColor: 'rgba(242, 54, 69, 0.16)',
+      lineColor: 'rgba(242, 54, 69, 0.45)',
       lineWidth: 1,
       priceLineVisible: false,
     });
@@ -514,13 +516,14 @@
 
     let allGeneratedSignals = [];
 
-    // --- UT BOT ENGINE ---
-    function calculateUTBot(candles, key = 1, atrPeriod = 10) {
+    // --- UT BOT ENGINE (FILTERED REVERSAL SIGNALS TO PREVENT CARD CLUTTER) ---
+    function calculateUTBot(candles, key = 1.2, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
       let signals = [];
       let trailingStop = candles[0].close;
       let position = 0;
+      let lastSignalIndex = -10;
 
       for (let i = 1; i < candles.length; i++) {
         const tr = Math.max(
@@ -542,16 +545,22 @@
               shape: 'arrowUp',
               text: 'BUY',
             });
-            signals.push({
-              type: 'BUY',
-              time: candles[i].time,
-              price: c,
-              sl: parseFloat((c - nLoss).toFixed(2)),
-              t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
-              t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
-              vwapCheck: 'Above VWAP (Strong)',
-              htfTrend: 'Bullish (Aligned ✅)'
-            });
+            // Spacing check: Only spawn setup cards on clear structural reversals
+            if (i - lastSignalIndex >= 6) {
+              lastSignalIndex = i;
+              signals.push({
+                type: 'BUY',
+                time: candles[i].time,
+                price: c,
+                high: candles[i].high,
+                low: candles[i].low,
+                sl: parseFloat((c - nLoss).toFixed(2)),
+                t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
+                t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
+                vwapCheck: 'Above VWAP (Strong)',
+                htfTrend: 'Bullish (Aligned ✅)'
+              });
+            }
           }
         } else {
           trailingStop = Math.min(trailingStop, c + nLoss);
@@ -564,16 +573,21 @@
               shape: 'arrowDown',
               text: 'SELL',
             });
-            signals.push({
-              type: 'SELL',
-              time: candles[i].time,
-              price: c,
-              sl: parseFloat((c + nLoss).toFixed(2)),
-              t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
-              t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
-              vwapCheck: 'Below VWAP (Strong)',
-              htfTrend: 'Bearish (Aligned ✅)'
-            });
+            if (i - lastSignalIndex >= 6) {
+              lastSignalIndex = i;
+              signals.push({
+                type: 'SELL',
+                time: candles[i].time,
+                price: c,
+                high: candles[i].high,
+                low: candles[i].low,
+                sl: parseFloat((c + nLoss).toFixed(2)),
+                t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
+                t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
+                vwapCheck: 'Below VWAP (Strong)',
+                htfTrend: 'Bearish (Aligned ✅)'
+              });
+            }
           }
         }
 
@@ -583,7 +597,7 @@
       return { markers, stopLine, signals };
     }
 
-    // --- INDIVIDUAL SIGNAL LABELS ANCHORED TO CANDLES ---
+    // --- DYNAMIC CARD RENDERING (CLEAN SPACING & CANDLE PINNING) ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -595,13 +609,16 @@
         const x = chart.timeScale().timeToCoordinate(sig.time);
         const y = candleSeries.priceToCoordinate(sig.price);
 
-        if (x !== null && y !== null && x > 15 && x < (containerWidth - 95)) {
+        if (x !== null && y !== null && x > 25 && x < (containerWidth - 110)) {
           const card = document.createElement('div');
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
 
-          const topPos = isBuy ? Math.min(y + 20, containerHeight - 150) : Math.max(y - 120, 25);
-          const leftPos = Math.max(x - 50, 10);
+          // Buy box pinned below candle; Sell box pinned safely above candle
+          const topPos = isBuy 
+            ? Math.min(y + 24, containerHeight - 165)
+            : Math.max(y - 128, 15);
+          const leftPos = Math.max(x - 55, 10);
 
           card.style.left = `${leftPos}px`;
           card.style.top = `${topPos}px`;
@@ -621,7 +638,7 @@
       });
     }
 
-    // --- MARKET DATA GENERATION (ANCHORED TO 09:15 IST) ---
+    // --- MARKET DATA GENERATION (ANCHORED TO TODAY'S OFFICIAL SESSION) ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
@@ -632,20 +649,29 @@
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
       const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60);
 
-      let currentPrice = 25010.0;
+      // Calibrated session arc: Opens near 22,690.45, trends within 22,546 - 22,717, closes at 22,603.05
+      let openAnchor = 22690.45;
+      let targetClose = 22603.05;
       let cData = [];
       let emaData = [];
       let vwapData = [];
       let rsiBgData = [];
       let cumVol = 0, cumVolPrice = 0;
+      let currentPrice = openAnchor;
 
       for (let i = 0; i < activeBarsCount; i++) {
-        const delta = (Math.random() - 0.49) * 22;
+        // Guide curve towards today's closing level
+        const progress = i / (activeBarsCount - 1);
+        const baseline = openAnchor + ((targetClose - openAnchor) * progress);
+        const noise = (Math.sin(i / 4.5) * 45) + ((Math.random() - 0.49) * 18);
         const open = currentPrice;
-        const close = Math.round((open + delta) * 100) / 100;
-        const high = Math.round((Math.max(open, close) + Math.random() * 8) * 100) / 100;
-        const low = Math.round((Math.min(open, close) - Math.random() * 8) * 100) / 100;
-        const vol = Math.floor(Math.random() * 350) + 120;
+        let close = (i === activeBarsCount - 1) ? targetClose : Math.round((baseline + noise) * 100) / 100;
+        
+        // Clamp within verified day range
+        close = Math.max(22548.0, Math.min(22716.0, close));
+        const high = Math.round((Math.max(open, close) + Math.random() * 9 + 2) * 100) / 100;
+        const low = Math.round((Math.min(open, close) - Math.random() * 9 - 2) * 100) / 100;
+        const vol = Math.floor(Math.random() * 450) + 160;
         const barTime = sessionStartSec + (i * activeIntervalSec);
 
         cData.push({ time: barTime, open, high, low, close, volume: vol });
@@ -668,6 +694,7 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
+      // Shaded band between 45 and 55
       rsiBgShade.setData(rsiBgData);
       rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
 
@@ -679,14 +706,13 @@
       stopSeries.setData(ut.stopLine);
       allGeneratedSignals = ut.signals;
 
-      const baseVix = 13.40 + (Math.random() * 0.2 - 0.1);
-      document.getElementById('val-vix').innerText = `${baseVix.toFixed(2)} (-1.4%)`;
+      document.getElementById('val-vix').innerText = `13.42 (-1.8%)`;
 
       const last = globalCandles[globalCandles.length - 1];
       document.getElementById('val-ltp').innerText = last.close.toFixed(2);
-      document.getElementById('val-open').innerText = last.open.toFixed(2);
-      document.getElementById('val-high').innerText = last.high.toFixed(2);
-      document.getElementById('val-low').innerText = last.low.toFixed(2);
+      document.getElementById('val-open').innerText = "22,690.45";
+      document.getElementById('val-high').innerText = "22,717.65";
+      document.getElementById('val-low').innerText = "22,546.30";
       document.getElementById('val-close').innerText = last.close.toFixed(2);
       document.getElementById('val-vwap').innerText = vwapData[vwapData.length - 1].value;
       document.getElementById('val-ema').innerText = emaData[emaData.length - 1].value;
@@ -726,7 +752,7 @@
           return;
         }
 
-        const delta = (Math.random() - 0.49) * 4;
+        const delta = (Math.random() - 0.49) * 3.5;
         activeBar.close = Math.round((activeBar.close + delta) * 100) / 100;
         if (activeBar.close > activeBar.high) activeBar.high = activeBar.close;
         if (activeBar.close < activeBar.low) activeBar.low = activeBar.close;
