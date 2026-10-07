@@ -49,7 +49,6 @@
       flex-direction: column;
     }
 
-    /* TOP HEADER */
     header {
       background-color: var(--bg-panel);
       border-bottom: 1px solid var(--border);
@@ -142,7 +141,6 @@
       box-shadow: 0 0 8px currentColor;
     }
 
-    /* TICKER STATS BAR */
     .ticker-bar {
       display: flex;
       align-items: center;
@@ -184,7 +182,6 @@
     .stat-label { color: var(--text-muted); }
     .stat-val { color: var(--text-main); font-weight: 600; }
 
-    /* SPLIT MAIN CANVAS & RSI */
     #dashboard-view {
       position: relative;
       flex: 1 1 auto;
@@ -225,12 +222,11 @@
       z-index: 5;
     }
 
-    /* CLEAN CARD HUD */
     .trade-setup-card {
       position: absolute;
-      background: rgba(18, 22, 33, 0.96);
-      border-radius: 5px;
-      padding: 6px 9px;
+      background: rgba(18, 22, 33, 0.94);
+      border-radius: 4px;
+      padding: 5px 8px;
       font-family: var(--font-mono);
       font-size: 8.5px;
       line-height: 1.35;
@@ -248,7 +244,7 @@
     .card-title {
       font-weight: 700;
       font-size: 9px;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
       display: flex;
       align-items: center;
       gap: 4px;
@@ -266,7 +262,6 @@
     .card-row span:first-child { color: var(--text-muted); }
     .card-row strong { color: #fff; }
 
-    /* BOTTOM BAR */
     .bottom-bar {
       background: var(--bg-panel);
       border-top: 1px solid var(--border);
@@ -296,7 +291,6 @@
 </head>
 <body>
 
-  <!-- HEADER -->
   <header>
     <div class="header-left">
       <div class="brand-logo">APEX TERMINAL</div>
@@ -316,7 +310,6 @@
     </div>
   </header>
 
-  <!-- TICKER STATS BAR -->
   <div class="ticker-bar">
     <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">22,603.05</span></span>
     <span class="pill-tag pill-gift">GIFT NIFTY: <span id="val-gift">22,642.50 (+0.17%)</span></span>
@@ -330,7 +323,6 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- DUAL VIEWPORT -->
   <div id="dashboard-view">
     <div id="main-chart-wrapper">
       <div id="main-chart"></div>
@@ -341,7 +333,6 @@
     </div>
   </div>
 
-  <!-- BOTTOM BAR -->
   <div class="bottom-bar">
     <div class="btn-group" id="range-group">
       <button class="btn" data-range="1D">1D</button>
@@ -353,7 +344,6 @@
   </div>
 
   <script>
-    // --- 24-HOUR IST RUNNING CLOCK ---
     function updateClock() {
       const now = new Date();
       const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
@@ -374,7 +364,6 @@
       return mins >= 555 && mins <= 930;
     }
 
-    // --- 1. MAIN CANDLESTICK CHART ---
     const mainChartContainer = document.getElementById('main-chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -429,7 +418,7 @@
       priceLineVisible: false,
     });
 
-    // --- 2. DEDICATED RSI SUB-PANE (PROPORTIONAL OSCILLATION 0-100) ---
+    // RSI dedicated pane
     const rsiContainer = document.getElementById('rsi-chart');
     const rsiChart = LightweightCharts.createChart(rsiContainer, {
       layout: {
@@ -444,7 +433,7 @@
       timeScale: { visible: false },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.12, bottom: 0.12 },
+        scaleMargins: { top: 0.15, bottom: 0.15 },
       }
     });
 
@@ -454,7 +443,6 @@
       priceLineVisible: false,
     });
 
-    // Dedicated reference lines at 55 and 45
     rsiSeries.createPriceLine({
       price: 55,
       color: '#f23645',
@@ -476,8 +464,7 @@
       updateAllSignalLabels();
     });
 
-    // --- REALISTIC RSI CALCULATION (SMOOTH WILDER RMA) ---
-    function calculateTrueRSI(candles) {
+    function calculateRealRSI(candles) {
       if (!candles.length) return [];
       let rsiData = [];
       let period = 14;
@@ -508,13 +495,12 @@
 
     let allGeneratedSignals = [];
 
-    // --- STRICT ATOMIC UT BOT (ONE STATE AT A TIME, NO CONCURRENT SIGNALS) ---
     function calculateUTBot(candles, key = 1.4) {
       let markers = [];
       let stopLine = [];
       let signals = [];
       let trailingStop = candles[0].close;
-      let position = 0; // 1 = in BUY state, -1 = in SELL state
+      let position = 0;
       let lastBarIndex = -12;
 
       for (let i = 1; i < candles.length; i++) {
@@ -584,7 +570,6 @@
       return { markers, stopLine, signals };
     }
 
-    // --- ACCURATE SIGNAL CARDS POSITIONING ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -624,8 +609,8 @@
       });
     }
 
-    // --- REALISTIC INTRADAY PRICE GENERATOR (REPLACES SINE WAVES) ---
-    let activeIntervalSec = 300; // 5m
+    // Realistic Intraday Session Pattern (75 Bars = 09:15 to 15:30)
+    let activeIntervalSec = 300;
     let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
@@ -633,7 +618,7 @@
     function generateRealisticMarketCandles() {
       const now = new Date();
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
-      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // 09:15 AM IST
+      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60);
 
       const openAnchor = 22690.45;
       const targetClose = 22603.05;
@@ -643,14 +628,15 @@
       let cumVol = 0, cumVolPrice = 0;
       let currentPrice = openAnchor;
 
-      // Realistic structural swing levels across 75 session bars
+      // Real intraday market swing levels
       const pivots = [
         { bar: 0, price: 22690.45 },
-        { bar: 12, price: 22717.65 }, // Morning rally to high
-        { bar: 30, price: 22638.10 }, // Midday correction
-        { bar: 48, price: 22675.40 }, // Afternoon test
-        { bar: 65, price: 22546.30 }, // Late plunge to day low
-        { bar: 74, price: 22603.05 }  // Closing recovery
+        { bar: 10, price: 22717.65 }, // Morning high test
+        { bar: 24, price: 22660.10 }, // Morning pullback
+        { bar: 38, price: 22685.50 }, // Midday bounce
+        { bar: 54, price: 22620.00 }, // Afternoon break
+        { bar: 66, price: 22546.30 }, // Sell-off to day low
+        { bar: 74, price: 22603.05 }  // 3:30 PM closing recovery
       ];
 
       for (let i = 0; i < activeBarsCount; i++) {
@@ -664,14 +650,13 @@
         const segmentProgress = (i - p1.bar) / span;
         const trendBase = p1.price + ((p2.price - p1.price) * segmentProgress);
         
-        // Natural candle body noise instead of mathematical waves
-        const noise = (Math.random() - 0.49) * 12;
+        const noise = (Math.random() - 0.49) * 11;
         const open = currentPrice;
         let close = (i === activeBarsCount - 1) ? targetClose : Math.round((trendBase + noise) * 100) / 100;
 
         close = Math.max(22546.30, Math.min(22717.65, close));
-        const high = Math.round((Math.max(open, close) + Math.random() * 6 + 1.5) * 100) / 100;
-        const low = Math.round((Math.min(open, close) - Math.random() * 6 - 1.5) * 100) / 100;
+        const high = Math.round((Math.max(open, close) + Math.random() * 5 + 1.2) * 100) / 100;
+        const low = Math.round((Math.min(open, close) - Math.random() * 5 - 1.2) * 100) / 100;
         const vol = Math.floor(Math.random() * 450) + 160;
         const barTime = sessionStartSec + (i * activeIntervalSec);
 
@@ -694,7 +679,7 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      const rsiPoints = calculateTrueRSI(globalCandles);
+      const rsiPoints = calculateRealRSI(globalCandles);
       rsiSeries.setData(rsiPoints);
 
       const ut = calculateUTBot(globalCandles);
@@ -767,7 +752,6 @@
       }, 3000);
     }
 
-    // --- TIMEFRAMES ---
     document.querySelectorAll('#tf-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#tf-group .btn').forEach(b => b.classList.remove('active'));
@@ -780,7 +764,6 @@
       });
     });
 
-    // --- RANGES ---
     document.querySelectorAll('#range-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#range-group .btn').forEach(b => b.classList.remove('active'));
@@ -794,9 +777,7 @@
       });
     });
 
-    document.getElementById('btn-refresh').addEventListener('click', () => {
-      runEngine();
-    });
+    document.getElementById('btn-refresh').addEventListener('click', runEngine);
 
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       try {
@@ -847,7 +828,6 @@
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
 
-    // STARTUP
     runEngine();
     setTimeout(handleResize, 100);
   </script>
