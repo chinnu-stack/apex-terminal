@@ -778,66 +778,66 @@
       }
     }
 
-    function requestData() {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'query_range',
-          symbol: currentSymbol,
-          range: currentRange,
-          interval: currentInterval
-        }));
-      }
+  function initStandaloneEngine() {
+  const badge = document.getElementById('feed-status');
+  if (badge) {
+    badge.innerHTML = '<div class="live-dot" style="background:#00f3ff"></div> ENGINE ONLINE';
+    badge.style.color = '#00f3ff';
+  }
+
+  let currentPrice = 25000.0;
+  const now = Math.floor(Date.now() / 1000);
+  const intervalSeconds = 300;
+  const totalCandles = 80;
+  
+  let simulatedCandles = [];
+  let t = now - (totalCandles * intervalSeconds);
+
+  for (let i = 0; i < totalCandles; i++) {
+    const delta = (Math.random() - 0.49) * 30;
+    const open = currentPrice;
+    const close = Math.round((open + delta) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + Math.random() * 15) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - Math.random() * 15) * 100) / 100;
+    
+    simulatedCandles.push({
+      time: t,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      volume: Math.floor(Math.random() * 500) + 100
+    });
+    currentPrice = close;
+    t += intervalSeconds;
+  }
+
+  candles = simulatedCandles;
+
+  if (typeof applyFullSessionData === 'function') {
+    applyFullSessionData(candles);
+  } else if (typeof candleSeries !== 'undefined' && candleSeries) {
+    candleSeries.setData(candles);
+  }
+
+  let lastBar = { ...candles[candles.length - 1] };
+  setInterval(() => {
+    const tick = (Math.random() - 0.49) * 6;
+    lastBar.close = Math.round((lastBar.close + tick) * 100) / 100;
+    if (lastBar.close > lastBar.high) lastBar.high = lastBar.close;
+    if (lastBar.close < lastBar.low) lastBar.low = lastBar.close;
+
+    if (typeof candleSeries !== 'undefined' && candleSeries) {
+      candleSeries.update(lastBar);
     }
-
-    function connectWebSocket() {
-      // Connect to host dynamically so mobile browser automatically routes to the host PC
-      const host = window.location.hostname || 'localhost';
-      ws = new WebSocket('wss://lows-developmental-plate-immigration.trycloudflare.com');
-      const badge = document.getElementById('feed-status');
-
-      ws.onopen = function() {
-        badge.innerHTML = '<div class="live-dot"></div> ENGINE ONLINE';
-        badge.style.color = '#089981';
-        requestData();
-      };
-
-      ws.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        if (data.type === 'history' && data.symbol === currentSymbol) {
-          applyFullSessionData(data.candles);
-        }
-        if (data.type === 'tick' && data.symbol === currentSymbol) {
-          const stepSec = currentInterval === '1m' ? 60 : (currentInterval === '15m' ? 900 : 300);
-          const tickTime = data.time - (data.time % stepSec);
-          let last = candles[candles.length - 1];
-
-          if (last && last.time === tickTime) {
-            last.close = data.ltp;
-            last.high = Math.max(last.high, data.ltp);
-            last.low = Math.min(last.low, data.ltp);
-            last.volume += 1;
-            candleSeries.update(last);
-          } else if (last) {
-            const newBar = { time: tickTime, open: data.ltp, high: data.ltp, low: data.ltp, close: data.ltp, volume: 1 };
-            candles.push(newBar);
-            candleSeries.update(newBar);
-
-            const ut = calculateUTBotSignals(candles);
-            candleSeries.setMarkers(ut.markers);
-            stopSeries.setData(ut.stopLineData);
-            renderLabelSpecificBoxes();
-            renderRSI();
-          }
-          updateOverlay();
-        }
-      };
-
-      ws.onclose = function() {
-        badge.innerHTML = '<div class="live-dot" style="background:#f23645"></div> ENGINE OFFLINE';
-        badge.style.color = '#f23645';
-        setTimeout(connectWebSocket, 3000);
-      };
+    if (typeof updateOverlay === 'function') {
+      updateOverlay();
     }
+  }, 2000);
+}
+
+window.addEventListener('DOMContentLoaded', initStandaloneEngine);
+initStandaloneEngine();
 
     document.querySelectorAll('.btn-tab').forEach(function(btn) {
       btn.addEventListener('click', function() {
