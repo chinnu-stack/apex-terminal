@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Apex Terminal - Real-Time Dashboard</title>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #131722;
+      --bg-panel: #1e222d;
+      --bg-card: #2a2e39;
+      --border: #363c4e;
+      --text-main: #d1d4dc;
+      --text-muted: #787b86;
+      --accent-green: #089981;
+      --accent-red: #f23645;
+      --accent-blue: #2962ff;
+      --accent-amber: #f0b90b;
+      --accent-purple: #9c27b0;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { background: var(--bg-base); color: var(--text-main); font-family: var(--font-sans); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    header { height: 44px; background: var(--bg-panel); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; z-index: 20; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+    
+    .interval-group { display: flex; gap: 3px; background: var(--bg-base); padding: 2px; border-radius: 4px; border: 1px solid var(--border); }
+    .btn-tab { background: transparent; border: none; color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); font-weight: 600; padding: 2px 7px; border-radius: 3px; cursor: pointer; transition: 0.15s; }
+    .btn-tab:hover { color: #fff; }
+    .btn-tab.active { background: var(--accent-blue); color: #fff; }
+
+    .header-telemetry { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 10.5px; }
+    .tele-badge { background: var(--bg-card); border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
+    .tele-label { color: var(--text-muted); font-size: 10px; }
+    .tele-val { font-weight: 700; }
+    
+    .live-badge { font-size: 10px; font-weight: 700; background: rgba(8, 153, 129, 0.15); color: var(--accent-green); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(8, 153, 129, 0.3); display: flex; align-items: center; gap: 6px; }
+    .live-dot { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; }
+
+    .main-body { display: flex; flex: 1; height: calc(100vh - 44px); position: relative; overflow: hidden; }
+    #charts-wrapper { flex: 1; height: 100%; display: flex; flex-direction: column; position: relative; min-width: 0; }
+    #main-chart-container { flex: 80; width: 100%; position: relative; min-height: 0; }
+    #rsi-chart-container { flex: 20; width: 100%; border-top: 1px solid var(--border); position: relative; min-height: 0; }
+
+    .chart-overlay-info { position: absolute; top: 8px; left: 14px; z-index: 10; pointer-events: none; font-family: var(--font-mono); }
+    .stock-title { font-size: 15px; font-weight: 700; color: #fff; display: flex; align-items: baseline; gap: 8px; }
+    .stock-ltp { font-size: 17px; font-weight: 700; }
+    .ohlc-row { display: flex; gap: 10px; font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+    .ohlc-val { color: var(--text-main); font-weight: 600; }
+
+    .rsi-overlay-info {
+      position: absolute;
+      top: 4px;
+      left: 14px;
+      z-index: 10;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .rsi-val { color: var(--accent-purple); font-weight: 700; }
+    .gear-btn {
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: color 0.15s, transform 0.2s;
+      display: inline-flex;
+      align-items: center;
+    }
+    .gear-btn:hover { color: #fff; transform: rotate(45deg); }
+
+    #chart-labels-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; overflow: hidden; }
+    .candle-callout-box {
+      position: absolute;
+      width: 148px;
+      background: rgba(22, 26, 37, 0.88);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(54, 60, 78, 0.8);
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      line-height: 1.25;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+    }
+    .callout-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700; font-size: 8px; text-transform: uppercase; }
+    .callout-badge-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+    .callout-row { display: flex; justify-content: space-between; margin-bottom: 1px; color: var(--text-muted); }
+    .callout-val { color: #fff; font-weight: 600; }
+
+    .range-selector-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 12px;
+      z-index: 15;
+      display: flex;
+      gap: 3px;
+      background: rgba(30, 34, 45, 0.85);
+      backdrop-filter: blur(4px);
+      padding: 2px 3px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+    .range-btn { background: transparent; border: none; color: var(--text-muted); font-size: 9.5px; font-family: var(--font-mono); font-weight: 600; padding: 2px 5px; border-radius: 2px; cursor: pointer; }
+    .range-btn:hover { color: #fff; }
+    .range-btn.active { background: rgba(41, 98, 255, 0.3); color: #fff; border: 1px solid var(--accent-blue); }
+
+    .bottom-clock-badge {
+      position: absolute;
+      bottom: 5px;
+      right: 66px;
+      z-index: 15;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      padding: 2px 7px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      pointer-events: none;
+    }
+
+    #sidebar-toggle {
+      position: absolute;
+      right: 0px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 46px;
+      background: #1e222d;
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 5px 0 0 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      z-index: 35;
+      transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    #sidebar-toggle:hover { background: var(--accent-blue); color: #fff; }
+    #sidebar-toggle.open { right: 280px; border-right: none; }
+
+    .sidebar { width: 0; background: var(--bg-panel); border-left: none; display: flex; flex-direction: column; transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); z-index: 15; overflow: hidden; }
+    .sidebar.open { width: 280px; border-left: 1px solid var(--border); }
+    .sidebar-header { padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); text-transform: uppercase; white-space: nowrap; }
+    .search-container { padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--bg-base); min-width: 280px; }
+    .search-input { width: 100%; background: var(--bg-card); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); outline: none; }
+    .search-input:focus { border-color: var(--accent-blue); }
+    .watchlist { list-style: none; overflow-y: auto; flex: 1; min-width: 280px; }
+    .watch-item { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.03); cursor: pointer; }
+    .watch-item:hover { background: rgba(255, 255, 255, 0.04); }
+    .watch-item.selected { background: rgba(41, 98, 255, 0.15); border-left: 3px solid var(--accent-blue); }
+    .watch-symbol { font-size: 12px; font-weight: 600; color: #fff; }
+
+    #rsi-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 320px;
+      background: #1e222d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+      z-index: 100;
+      display: none;
+      font-family: var(--font-sans);
+    }
+    .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 13px; font-weight: 700; color: #fff; }
+    .modal-close { cursor: pointer; color: var(--text-muted); font-size: 16px; }
+    .modal-close:hover { color: #fff; }
+    
+    .modal-tabs { display: flex; border-bottom: 1px solid var(--border); background: #131722; }
+    .modal-tab-btn { flex: 1; padding: 8px 0; background: transparent; border: none; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+    .modal-tab-btn.active { color: #fff; border-bottom: 2px solid var(--accent-blue); }
+
+    .modal-body { padding: 14px 16px; font-size: 12px; }
+    .modal-tab-content { display: none; }
+    .modal-tab-content.active { display: block; }
+    .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-label-group { display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 12px; cursor: pointer; }
+    .modal-row input[type="number"], .modal-row select {
+      width: 80px;
+      background: #131722;
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-align: right;
+      outline: none;
+    }
+    .modal-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-blue); cursor: pointer; }
+
+    .modal-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-btn { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+    .modal-btn-cancel { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+    .modal-btn-cancel:hover { color: #fff; }
+    .modal-btn-ok { background: var(--accent-blue); color: #fff; }
+
+    .green { color: var(--accent-green); }
+    .red { color: var(--accent-red); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <div class="brand-logo">APEX TERMINAL</div>
+      <div class="interval-group">
+        <button class="btn-tab" data-int="1m">1m</button>
+        <button class="btn-tab active" data-int="5m">5m</button>
+        <button class="btn-tab" data-int="15m">15m</button>
+      </div>
+    </div>
+
+    <div class="header-telemetry">
+      <div class="tele-badge">
+        <span class="tele-label">UT STATUS:</span>
+        <span class="tele-val green" id="header-ut-action">ANALYZING</span>
+      </div>
+      <div class="tele-badge">
+        <span class="tele-label">STOP:</span>
+        <span class="tele-val" id="header-ut-stop">--</span>
+      </div>
+      <div class="live-badge" id="feed-status"><div class="live-dot" id="feed-dot"></div> ENGINE ONLINE</div>
+    </div>
+  </header>
+
+  <div class="main-body">
+    <div id="charts-wrapper">
+      <div id="main-chart-container">
+        <div class="chart-overlay-info">
+          <div class="stock-title">
+            <span id="overlay-symbol">NIFTY 50</span>
+            <span class="stock-ltp green" id="overlay-ltp">--</span>
+          </div>
+          <div class="ohlc-row">
+            <span>O: <span class="ohlc-val" id="ohlc-o">-</span></span>
+            <span>H: <span class="ohlc-val" id="ohlc-h">-</span></span>
+            <span>L: <span class="ohlc-val" id="ohlc-l">-</span></span>
+            <span>C: <span class="ohlc-val" id="ohlc-c">-</span></span>
+            <span>VWAP: <span class="ohlc-val" id="ohlc-vwap" style="color:var(--accent-amber)">-</span></span>
+            <span>EMA 20: <span class="ohlc-val" id="ohlc-ema" style="color:var(--accent-blue)">-</span></span>
+          </div>
+        </div>
+        <div id="chart-labels-layer"></div>
+      </div>
+
+      <div id="rsi-chart-container">
+        <div class="rsi-overlay-info">
+          <span>RSI (<span id="disp-rsi-len">14</span>, close)</span>
+          <span class="rsi-val" id="rsi-val">--</span>
+          <span class="gear-btn" id="open-rsi-settings" title="RSI Settings">⚙</span>
+        </div>
+      </div>
+
+      <div class="range-selector-bar">
+        <button class="range-btn" data-range="1d">1D</button>
+        <button class="range-btn active" data-range="5d">5D</button>
+        <button class="range-btn" data-range="1mo">1M</button>
+        <button class="range-btn" data-range="3mo">3M</button>
+      </div>
+
+      <div class="bottom-clock-badge" id="ist-clock">00:00:00 IST</div>
+    </div>
+
+    <div id="sidebar-toggle" title="Push/Pull Watchlist"><span id="toggle-arrow">◀</span></div>
+
+    <div class="sidebar" id="sidebar-panel">
+      <div class="sidebar-header">Watchlist</div>
+      <div class="search-container">
+        <input type="text" id="stock-search" class="search-input" placeholder="+ Add Stock & Enter">
+      </div>
+      <ul class="watchlist" id="watchlist-items"></ul>
+    </div>
+  </div>
+
+  <div id="rsi-modal">
+    <div class="modal-header">
+      <span class="modal-title">RSI</span>
+      <span class="modal-close" id="close-rsi-modal">✕</span>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab-btn" id="tab-btn-inputs">Inputs</button>
+      <button class="modal-tab-btn active" id="tab-btn-style">Style</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-tab-content" id="tab-content-inputs">
+        <div class="modal-row">
+          <label>Length</label>
+          <input type="number" id="inp-rsi-len" value="14" min="2" max="100">
+        </div>
+        <div class="modal-row">
+          <label>Smoothing Line</label>
+          <select id="inp-rsi-smooth-type">
+            <option value="SMA">SMA</option>
+            <option value="EMA">EMA</option>
+          </select>
+        </div>
+        <div class="modal-row">
+          <label>Smoothing Length</label>
+          <input type="number" id="inp-rsi-smooth-len" value="14" min="2" max="100">
+        </div>
+      </div>
+      <div class="modal-tab-content active" id="tab-content-style">
+        <div class="modal-row">
+          <label class="modal-label-group">
+            <input type="checkbox" id="chk-rsi-plot" checked>
+            <span>Plot (RSI Line)</span>
+          </label>
+        </div>
+        <div class="modal-row">
+          <label class="modal-label-group">
+            <input type="checkbox" id="chk-rsi-upper" checked>
+            <span>UpperLimit</span>
+          </label>
+          <input type="number" id="inp-rsi-upper" value="55">
+        </div>
+        <div class="modal-row">
+          <label class="modal-label-group">
+            <input type="checkbox" id="chk-rsi-middle">
+            <span>MiddleLimit</span>
+          </label>
+          <input type="number" id="inp-rsi-middle" value="0">
+        </div>
+        <div class="modal-row">
+          <label class="modal-label-group">
+            <input type="checkbox" id="chk-rsi-lower" checked>
+            <span>LowerLimit</span>
+          </label>
+          <input type="number" id="inp-rsi-lower" value="45">
+        </div>
+        <div class="modal-row">
+          <label class="modal-label-group">
+            <input type="checkbox" id="chk-rsi-bg" checked>
+            <span>Hlines Background</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="btn-rsi-cancel">Cancel</button>
+      <button class="modal-btn modal-btn-ok" id="btn-rsi-ok">Ok</button>
+    </div>
+  </div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const istTime = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false });
+      document.getElementById('ist-clock').textContent = istTime + ' IST';
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    const WATCHLIST = ['NIFTY 50', 'RELIANCE', 'TATASTEEL', 'HAL', 'BEL'];
+    let currentSymbol = 'NIFTY 50';
+    let currentInterval = '5m';
+    let currentRange = '5d';
+    let candles = [];
+    let ws = null;
+    let signalList = [];
+
+    // Cleaned default state allowing 0 for MiddleLimit
+    let rsiConfig = {
+      length: 14,
+      smoothType: 'SMA',
+      smoothLength: 14,
+      showPlot: true,
+      showUpper: true,
+      upperLimit: 55,
+      showMiddle: false,
+      middleLimit: 0,
+      showLower: true,
+      lowerLimit: 45,
+      showBg: true
+    };
+
+    const mainContainer = document.getElementById('main-chart-container');
+    const rsiContainer = document.getElementById('rsi-chart-container');
+    const labelsLayer = document.getElementById('chart-labels-layer');
+
+    const mainChart = LightweightCharts.createChart(mainContainer, {
+      layout: { background: { color: '#131722' }, textColor: '#787b86' },
+      grid: { vertLines: { color: 'rgba(54, 60, 78, 0.4)', style: 1 }, horzLines: { color: 'rgba(54, 60, 78, 0.4)', style: 1 } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Magnet, vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' }, horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' } },
+      rightPriceScale: { borderColor: '#363c4e', autoScale: true },
+      timeScale: { borderColor: '#363c4e', timeVisible: true, secondsVisible: false, rightOffset: 12, barSpacing: 9, minBarSpacing: 3, fixLeftEdge: false, visible: false },
+      localization: {
+        timeFormatter: function(time) {
+          const d = new Date(time * 1000);
+          const day = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+          const tm = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+          return `${day} ${tm}`;
+        }
+      },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true }
+    });
+
+    const rsiChart = LightweightCharts.createChart(rsiContainer, {
+      layout: { background: { color: '#131722' }, textColor: '#787b86' },
+      grid: { vertLines: { color: 'rgba(54, 60, 78, 0.25)', style: 1 }, horzLines: { color: 'rgba(54, 60, 78, 0.25)', style: 1 } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2962ff' }, horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#9c27b0' } },
+      rightPriceScale: {
+        borderColor: '#363c4e',
+        autoScale: true,
+        scaleMargins: { top: 0.1, bottom: 0.1 }
+      },
+      timeScale: {
+        borderColor: '#363c4e',
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 12,
+        barSpacing: 9,
+        minBarSpacing: 3,
+        fixLeftEdge: false,
+        tickMarkFormatter: function(time) {
+          const d = new Date(time * 1000);
+          return d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+      },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true }
+    });
+
+    let isSyncing = false;
+    mainChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+      if (isSyncing || !range) return;
+      isSyncing = true;
+      rsiChart.timeScale().setVisibleLogicalRange(range);
+      isSyncing = false;
+    });
+    rsiChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+      if (isSyncing || !range) return;
+      isSyncing = true;
+      mainChart.timeScale().setVisibleLogicalRange(range);
+      isSyncing = false;
+    });
+
+    const candleSeries = mainChart.addCandlestickSeries({ upColor: '#089981', downColor: '#f23645', borderUpColor: '#089981', borderDownColor: '#f23645', wickUpColor: '#089981', wickDownColor: '#f23645' });
+    const vwapSeries = mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'VWAP', priceLineVisible: false });
+    const ema20Series = mainChart.addLineSeries({ color: '#2962ff', lineWidth: 2, title: 'EMA 20', priceLineVisible: false });
+    const stopSeries = mainChart.addLineSeries({ color: 'rgba(242, 54, 69, 0.65)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, priceLineVisible: false });
+
+    // RSI lines without bounds errors
+    const rsiBgSeries = rsiChart.addAreaSeries({
+      topColor: 'rgba(242, 54, 69, 0.20)',
+      bottomColor: 'rgba(242, 54, 69, 0.20)',
+      lineColor: 'transparent',
+      lineWidth: 0,
+      priceLineVisible: false
+    });
+
+    const rsiSeries = rsiChart.addLineSeries({ color: '#b388ff', lineWidth: 2, priceLineVisible: true });
+    const rsiUpperLine = rsiChart.addLineSeries({ color: 'rgba(242, 54, 69, 0.65)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+    const rsiLowerLine = rsiChart.addLineSeries({ color: 'rgba(8, 153, 129, 0.65)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+    const rsiMiddleLine = rsiChart.addLineSeries({ color: 'rgba(120, 123, 134, 0.5)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, priceLineVisible: false });
+
+    function calculateVWAP(candleList) {
+      let cumVol = 0, cumVolPrice = 0;
+      return candleList.map(function(c) {
+        let typ = (c.high + c.low + c.close) / 3;
+        cumVol += c.volume;
+        cumVolPrice += typ * c.volume;
+        return { time: c.time, value: cumVolPrice / (cumVol || 1) };
+      });
+    }
+
+    function calculateEMA(candleList, period) {
+      period = period || 20;
+      const k = 2 / (period + 1);
+      const emaData = [];
+      let ema = 0;
+      for (let i = 0; i < candleList.length; i++) {
+        const close = candleList[i].close;
+        if (i === 0) ema = close;
+        else if (i < period) ema = (ema * i + close) / (i + 1);
+        else ema = (close - ema) * k + ema;
+        emaData.push({ time: candleList[i].time, value: ema });
+      }
+      return emaData;
+    }
+
+    function calculateRSI(candleList, period) {
+      period = period || 14;
+      const rsiData = [];
+      if (candleList.length <= period) return rsiData;
+
+      let gains = 0, losses = 0;
+      for (let i = 1; i <= period; i++) {
+        const diff = candleList[i].close - candleList[i - 1].close;
+        if (diff >= 0) gains += diff;
+        else losses -= diff;
+      }
+      let avgGain = gains / period;
+      let avgLoss = losses / period;
+
+      let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      let rsi = 100 - (100 / (1 + rs));
+      rsiData.push({ time: candleList[period].time, value: parseFloat(rsi.toFixed(2)) });
+
+      for (let i = period + 1; i < candleList.length; i++) {
+        const diff = candleList[i].close - candleList[i - 1].close;
+        const gain = diff > 0 ? diff : 0;
+        const loss = diff < 0 ? -diff : 0;
+
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+
+        rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        rsi = 100 - (100 / (1 + rs));
+        rsiData.push({ time: candleList[i].time, value: parseFloat(rsi.toFixed(2)) });
+      }
+      return rsiData;
+    }
+
+    function calculateUTBotSignals(candleList, keyVal, atrPeriod) {
+      keyVal = keyVal || 2;
+      atrPeriod = atrPeriod || 10;
+      const markers = [];
+      const stopLineData = [];
+      signalList = [];
+      const vwapData = calculateVWAP(candleList);
+
+      const trList = [];
+      for (let i = 0; i < candleList.length; i++) {
+        const c = candleList[i];
+        let tr = c.high - c.low;
+        if (i > 0) {
+          const prevC = candleList[i - 1].close;
+          tr = Math.max(tr, Math.abs(c.high - prevC), Math.abs(c.low - prevC));
+        }
+        trList.push(tr);
+      }
+
+      const atrList = [];
+      let trSum = 0;
+      for (let i = 0; i < candleList.length; i++) {
+        if (i < atrPeriod) {
+          trSum += trList[i];
+          atrList.push(trSum / (i + 1));
+        } else {
+          const smoothATR = (atrList[i - 1] * (atrPeriod - 1) + trList[i]) / atrPeriod;
+          atrList.push(smoothATR);
+        }
+      }
+
+      let trailStop = candleList.length ? candleList[0].close : 0;
+      let pos = 0;
+
+      for (let i = 0; i < candleList.length; i++) {
+        const cur = candleList[i];
+        const nLoss = keyVal * atrList[i];
+        const prevStop = trailStop;
+
+        if (cur.close > prevStop) trailStop = Math.max(prevStop, cur.close - nLoss);
+        else trailStop = Math.min(prevStop, cur.close + nLoss);
+
+        stopLineData.push({ time: cur.time, value: trailStop });
+
+        if (i > 0) {
+          const prevClose = candleList[i - 1].close;
+          const isBuy = (prevClose <= prevStop && cur.close > trailStop);
+          const isSell = (prevClose >= prevStop && cur.close < trailStop);
+
+          if (isBuy || isSell) {
+            pos = isBuy ? 1 : -1;
+            const signalType = isBuy ? 'BUY' : 'SELL';
+            const entry = cur.close;
+            const sl = trailStop;
+            const risk = Math.max(Math.abs(entry - sl), entry * 0.001);
+            const t1 = isBuy ? (entry + risk * 1.5) : (entry - risk * 1.5);
+            const t2 = isBuy ? (entry + risk * 2.5) : (entry - risk * 2.5);
+            const curVwap = vwapData[i] ? vwapData[i].value : entry;
+            const vwapCheck = isBuy ? (entry >= curVwap ? 'Above (Strong)' : 'Below (Caution)') : (entry <= curVwap ? 'Below (Strong)' : 'Above (Caution)');
+
+            signalList.push({
+              time: cur.time,
+              price: isBuy ? cur.low : cur.high,
+              type: signalType,
+              entry: entry,
+              sl: sl,
+              t1: t1,
+              t2: t2,
+              vwapCheck: vwapCheck,
+              htf: isBuy ? 'Bullish ✅' : 'Bearish ✅'
+            });
+
+            markers.push({
+              time: cur.time,
+              position: isBuy ? 'belowBar' : 'aboveBar',
+              color: isBuy ? '#089981' : '#f23645',
+              shape: isBuy ? 'arrowUp' : 'arrowDown',
+              text: signalType
+            });
+          }
+        }
+      }
+
+      return { markers: markers, stopLineData: stopLineData, lastStop: trailStop, lastPos: pos };
+    }
+
+    function renderLabelSpecificBoxes() {
+      labelsLayer.innerHTML = '';
+      if (!candles.length || !signalList.length) return;
+
+      const timeScale = mainChart.timeScale();
+
+      signalList.forEach(function(sig) {
+        const xCoord = timeScale.timeToCoordinate(sig.time);
+        const yCoord = candleSeries.priceToCoordinate(sig.price);
+
+        if (xCoord !== null && yCoord !== null && xCoord > -50 && xCoord < mainContainer.clientWidth + 50) {
+          const isBull = sig.type === 'BUY';
+          const box = document.createElement('div');
+          box.className = 'candle-callout-box';
+
+          box.innerHTML = `
+            <div class="callout-header">
+              <div>
+                <span class="callout-badge-dot" style="background:${isBull ? 'var(--accent-green)' : 'var(--accent-red)'}"></span>
+                <span class="${isBull ? 'green' : 'red'}">${sig.type} CONFIRMED</span>
+              </div>
+            </div>
+            <div class="callout-row"><span>Entry:</span><span class="callout-val">${sig.entry.toFixed(2)}</span></div>
+            <div class="callout-row"><span>SL (UT):</span><span class="callout-val">${sig.sl.toFixed(2)}</span></div>
+            <div class="callout-row"><span>T1 (1:1.5):</span><span class="callout-val">${sig.t1.toFixed(2)}</span></div>
+            <div class="callout-row"><span>T2 (1:2.5):</span><span class="callout-val">${sig.t2.toFixed(2)}</span></div>
+            <div class="callout-row"><span>VWAP:</span><span class="callout-val">${sig.vwapCheck}</span></div>
+            <div class="callout-row"><span>HTF:</span><span class="callout-val">${sig.htf}</span></div>
+          `;
+
+          let left = xCoord + 12;
+          let top = isBull ? (yCoord + 8) : (yCoord - 105);
+
+          if (left + 155 > mainContainer.clientWidth) left = xCoord - 160;
+          if (top < 8) top = 8;
+          if (top + 110 > mainContainer.clientHeight) top = mainContainer.clientHeight - 112;
+
+          box.style.left = left + 'px';
+          box.style.top = top + 'px';
+          labelsLayer.appendChild(box);
+        }
+      });
+    }
+
+    mainChart.timeScale().subscribeVisibleTimeRangeChange(renderLabelSpecificBoxes);
+
+    mainChart.subscribeCrosshairMove(function(param) {
+      if (!param || !param.time || !param.seriesData.get(candleSeries)) {
+        updateOverlay();
+        return;
+      }
+      const data = param.seriesData.get(candleSeries);
+      const vData = param.seriesData.get(vwapSeries);
+      const eData = param.seriesData.get(ema20Series);
+      document.getElementById('ohlc-o').textContent = data.open.toFixed(2);
+      document.getElementById('ohlc-h').textContent = data.high.toFixed(2);
+      document.getElementById('ohlc-l').textContent = data.low.toFixed(2);
+      document.getElementById('ohlc-c').textContent = data.close.toFixed(2);
+      if (vData) document.getElementById('ohlc-vwap').textContent = vData.value.toFixed(2);
+      if (eData) document.getElementById('ohlc-ema').textContent = eData.value.toFixed(2);
+      
+      const isUp = data.close >= data.open;
+      const ltpEl = document.getElementById('overlay-ltp');
+      ltpEl.textContent = data.close.toFixed(2);
+      ltpEl.className = 'stock-ltp ' + (isUp ? 'green' : 'red');
+    });
+
+    rsiChart.subscribeCrosshairMove(function(param) {
+      if (!param || !param.time || !param.seriesData.get(rsiSeries)) return;
+      const rsiVal = param.seriesData.get(rsiSeries);
+      if (rsiVal) document.getElementById('rsi-val').textContent = rsiVal.value.toFixed(2);
+    });
+
+    function updateOverlay() {
+      if (candles.length === 0) return;
+      const last = candles[candles.length - 1];
+      const vwapData = calculateVWAP(candles);
+      const emaData = calculateEMA(candles, 20);
+      const lastVwap = (vwapData.length > 0) ? vwapData[vwapData.length - 1].value : last.close;
+      const lastEma = (emaData.length > 0) ? emaData[emaData.length - 1].value : last.close;
+
+      const isUp = last.close >= last.open;
+      const ltpEl = document.getElementById('overlay-ltp');
+      ltpEl.textContent = last.close.toFixed(2);
+      ltpEl.className = 'stock-ltp ' + (isUp ? 'green' : 'red');
+
+      document.getElementById('overlay-symbol').textContent = currentSymbol;
+      document.getElementById('ohlc-o').textContent = last.open.toFixed(2);
+      document.getElementById('ohlc-h').textContent = last.high.toFixed(2);
+      document.getElementById('ohlc-l').textContent = last.low.toFixed(2);
+      document.getElementById('ohlc-c').textContent = last.close.toFixed(2);
+      document.getElementById('ohlc-vwap').textContent = lastVwap.toFixed(2);
+      document.getElementById('ohlc-ema').textContent = lastEma.toFixed(2);
+    }
+
+    function applyFullSessionData(candleData) {
+      if (!candleData || candleData.length === 0) return;
+      candles = candleData;
+      candleSeries.setData(candles);
+
+      const vwapData = calculateVWAP(candles);
+      vwapSeries.setData(vwapData);
+      const emaData = calculateEMA(candles, 20);
+      ema20Series.setData(emaData);
+
+      const ut = calculateUTBotSignals(candles);
+      candleSeries.setMarkers(ut.markers);
+      stopSeries.setData(ut.stopLineData);
+
+      const isBull = ut.lastPos === 1;
+      const headerAction = document.getElementById('header-ut-action');
+      headerAction.textContent = isBull ? 'BUY (Bullish)' : 'SELL (Bearish)';
+      headerAction.className = 'tele-val ' + (isBull ? 'green' : 'red');
+      document.getElementById('header-ut-stop').textContent = ut.lastStop.toFixed(2);
+
+      renderRSI();
+      updateOverlay();
+      mainChart.timeScale().fitContent();
+      rsiChart.timeScale().fitContent();
+      setTimeout(renderLabelSpecificBoxes, 60);
+    }
+
+    function renderRSI() {
+      if (!candles.length) return;
+      const rsiData = calculateRSI(candles, rsiConfig.length);
+      document.getElementById('disp-rsi-len').textContent = rsiConfig.length;
+
+      if (rsiData.length > 0) {
+        document.getElementById('rsi-val').textContent = rsiData[rsiData.length - 1].value.toFixed(2);
+
+        if (rsiConfig.showPlot) {
+          rsiSeries.setData(rsiData);
+        } else {
+          rsiSeries.setData([]);
+        }
+
+        if (rsiConfig.showUpper) {
+          rsiUpperLine.setData(rsiData.map(d => ({ time: d.time, value: rsiConfig.upperLimit })));
+        } else {
+          rsiUpperLine.setData([]);
+        }
+
+        if (rsiConfig.showLower) {
+          rsiLowerLine.setData(rsiData.map(d => ({ time: d.time, value: rsiConfig.lowerLimit })));
+        } else {
+          rsiLowerLine.setData([]);
+        }
+
+        if (rsiConfig.showMiddle) {
+          rsiMiddleLine.setData(rsiData.map(d => ({ time: d.time, value: rsiConfig.middleLimit })));
+        } else {
+          rsiMiddleLine.setData([]);
+        }
+
+        if (rsiConfig.showBg && rsiConfig.showUpper && rsiConfig.showLower) {
+          rsiBgSeries.applyOptions({ baseValue: { type: 'price', price: rsiConfig.lowerLimit } });
+          rsiBgSeries.setData(rsiData.map(d => ({ time: d.time, value: rsiConfig.upperLimit })));
+        } else {
+          rsiBgSeries.setData([]);
+        }
+      }
+    }
+
+    function requestData() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'query_range',
+          symbol: currentSymbol,
+          range: currentRange,
+          interval: currentInterval
+        }));
+      }
+    }
+
+    function connectWebSocket() {
+      // Connect to host dynamically so mobile browser automatically routes to the host PC
+      const host = window.location.hostname || 'localhost';
+      ws = new WebSocket('ws://' + host + ':8765');
+      const badge = document.getElementById('feed-status');
+
+      ws.onopen = function() {
+        badge.innerHTML = '<div class="live-dot"></div> ENGINE ONLINE';
+        badge.style.color = '#089981';
+        requestData();
+      };
+
+      ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'history' && data.symbol === currentSymbol) {
+          applyFullSessionData(data.candles);
+        }
+        if (data.type === 'tick' && data.symbol === currentSymbol) {
+          const stepSec = currentInterval === '1m' ? 60 : (currentInterval === '15m' ? 900 : 300);
+          const tickTime = data.time - (data.time % stepSec);
+          let last = candles[candles.length - 1];
+
+          if (last && last.time === tickTime) {
+            last.close = data.ltp;
+            last.high = Math.max(last.high, data.ltp);
+            last.low = Math.min(last.low, data.ltp);
+            last.volume += 1;
+            candleSeries.update(last);
+          } else if (last) {
+            const newBar = { time: tickTime, open: data.ltp, high: data.ltp, low: data.ltp, close: data.ltp, volume: 1 };
+            candles.push(newBar);
+            candleSeries.update(newBar);
+
+            const ut = calculateUTBotSignals(candles);
+            candleSeries.setMarkers(ut.markers);
+            stopSeries.setData(ut.stopLineData);
+            renderLabelSpecificBoxes();
+            renderRSI();
+          }
+          updateOverlay();
+        }
+      };
+
+      ws.onclose = function() {
+        badge.innerHTML = '<div class="live-dot" style="background:#f23645"></div> ENGINE OFFLINE';
+        badge.style.color = '#f23645';
+        setTimeout(connectWebSocket, 3000);
+      };
+    }
+
+    document.querySelectorAll('.btn-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.btn-tab').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentInterval = btn.dataset.int;
+        requestData();
+      });
+    });
+
+    document.querySelectorAll('.range-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.range-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentRange = btn.dataset.range;
+        if (['1mo', '3mo'].includes(currentRange)) currentInterval = '1d';
+        else currentInterval = document.querySelector('.btn-tab.active').dataset.int;
+        requestData();
+      });
+    });
+
+    const sidebar = document.getElementById('sidebar-panel');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const toggleArrow = document.getElementById('toggle-arrow');
+
+    toggleBtn.addEventListener('click', function() {
+      const isOpen = sidebar.classList.toggle('open');
+      toggleBtn.classList.toggle('open');
+      toggleArrow.textContent = isOpen ? '▶' : '◀';
+
+      setTimeout(function() {
+        mainChart.applyOptions({ width: mainContainer.clientWidth, height: mainContainer.clientHeight });
+        rsiChart.applyOptions({ width: rsiContainer.clientWidth, height: rsiContainer.clientHeight });
+        renderLabelSpecificBoxes();
+      }, 260);
+    });
+
+    function renderWatchlist() {
+      const list = document.getElementById('watchlist-items');
+      list.innerHTML = '';
+      WATCHLIST.forEach(function(sym) {
+        const li = document.createElement('li');
+        li.className = 'watch-item' + (sym === currentSymbol ? ' selected' : '');
+        li.innerHTML = `<div><div class="watch-symbol">${sym}</div><div style="font-size:10px; color:var(--text-muted);">NSE REALTIME</div></div>`;
+        li.addEventListener('click', function() {
+          document.querySelectorAll('.watch-item').forEach(function(el) { el.classList.remove('selected'); });
+          li.classList.add('selected');
+          currentSymbol = sym;
+          candles = [];
+          candleSeries.setData([]);
+          vwapSeries.setData([]);
+          ema20Series.setData([]);
+          stopSeries.setData([]);
+          rsiSeries.setData([]);
+          rsiBgSeries.setData([]);
+          labelsLayer.innerHTML = '';
+          requestData();
+        });
+        list.appendChild(li);
+      });
+    }
+
+    const searchInput = document.getElementById('stock-search');
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        const val = searchInput.value.trim().toUpperCase();
+        if (val && !WATCHLIST.includes(val)) {
+          WATCHLIST.push(val);
+          renderWatchlist();
+          searchInput.value = '';
+        }
+      }
+    });
+
+    const rsiModal = document.getElementById('rsi-modal');
+    const openRsiBtn = document.getElementById('open-rsi-settings');
+    const closeRsiBtn = document.getElementById('close-rsi-modal');
+    const cancelRsiBtn = document.getElementById('btn-rsi-cancel');
+    const okRsiBtn = document.getElementById('btn-rsi-ok');
+
+    const tabInputs = document.getElementById('tab-btn-inputs');
+    const tabStyle = document.getElementById('tab-btn-style');
+    const contentInputs = document.getElementById('tab-content-inputs');
+    const contentStyle = document.getElementById('tab-content-style');
+
+    openRsiBtn.addEventListener('click', function() {
+      document.getElementById('inp-rsi-len').value = rsiConfig.length;
+      document.getElementById('inp-rsi-smooth-len').value = rsiConfig.smoothLength;
+      document.getElementById('chk-rsi-plot').checked = rsiConfig.showPlot;
+      document.getElementById('chk-rsi-upper').checked = rsiConfig.showUpper;
+      document.getElementById('inp-rsi-upper').value = rsiConfig.upperLimit;
+      document.getElementById('chk-rsi-middle').checked = rsiConfig.showMiddle;
+      document.getElementById('inp-rsi-middle').value = rsiConfig.middleLimit;
+      document.getElementById('chk-rsi-lower').checked = rsiConfig.showLower;
+      document.getElementById('inp-rsi-lower').value = rsiConfig.lowerLimit;
+      document.getElementById('chk-rsi-bg').checked = rsiConfig.showBg;
+      rsiModal.style.display = 'block';
+    });
+
+    function closeRsiModal() { rsiModal.style.display = 'none'; }
+    closeRsiBtn.addEventListener('click', closeRsiModal);
+    cancelRsiBtn.addEventListener('click', closeRsiModal);
+
+    tabInputs.addEventListener('click', function() {
+      tabInputs.classList.add('active');
+      tabStyle.classList.remove('active');
+      contentInputs.classList.add('active');
+      contentStyle.classList.remove('active');
+    });
+
+    tabStyle.addEventListener('click', function() {
+      tabStyle.classList.add('active');
+      tabInputs.classList.remove('active');
+      contentStyle.classList.add('active');
+      contentInputs.classList.remove('active');
+    });
+
+    okRsiBtn.addEventListener('click', function() {
+      rsiConfig.length = parseInt(document.getElementById('inp-rsi-len').value, 10) || 14;
+      rsiConfig.smoothLength = parseInt(document.getElementById('inp-rsi-smooth-len').value, 10) || 14;
+      rsiConfig.showPlot = document.getElementById('chk-rsi-plot').checked;
+      rsiConfig.showUpper = document.getElementById('chk-rsi-upper').checked;
+      
+      const upVal = parseFloat(document.getElementById('inp-rsi-upper').value);
+      rsiConfig.upperLimit = isNaN(upVal) ? 55 : upVal;
+
+      rsiConfig.showMiddle = document.getElementById('chk-rsi-middle').checked;
+      
+      // Fixed: Allows 0 to be properly saved without defaulting
+      const midVal = parseFloat(document.getElementById('inp-rsi-middle').value);
+      rsiConfig.middleLimit = isNaN(midVal) ? 0 : midVal;
+
+      rsiConfig.showLower = document.getElementById('chk-rsi-lower').checked;
+      const lowVal = parseFloat(document.getElementById('inp-rsi-lower').value);
+      rsiConfig.lowerLimit = isNaN(lowVal) ? 45 : lowVal;
+
+      rsiConfig.showBg = document.getElementById('chk-rsi-bg').checked;
+      
+      renderRSI();
+      rsiChart.timeScale().fitContent();
+      closeRsiModal();
+    });
+
+    renderWatchlist();
+    connectWebSocket();
+
+    window.addEventListener('resize', function() {
+      mainChart.applyOptions({ width: mainContainer.clientWidth, height: mainContainer.clientHeight });
+      rsiChart.applyOptions({ width: rsiContainer.clientWidth, height: rsiContainer.clientHeight });
+      renderLabelSpecificBoxes();
+    });
+  </script>
+</body>
+</html>
