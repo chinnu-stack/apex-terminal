@@ -792,7 +792,7 @@
     function connectWebSocket() {
       // Connect to host dynamically so mobile browser automatically routes to the host PC
       const host = window.location.hostname || 'localhost';
-      ws = new WebSocket('ws://' + host + ':8765');
+      ws = new WebSocket('wss://lows-developmental-plate-immigration.trycloudflare.com');
       const badge = document.getElementById('feed-status');
 
       ws.onopen = function() {
