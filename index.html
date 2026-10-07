@@ -189,12 +189,13 @@
       font-weight: 600;
     }
 
-    /* CHART CONTAINER */
+    /* CHART CONTAINER & FLOATING LABELS */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
       width: 100%;
       height: calc(100vh - 120px);
+      overflow: hidden;
     }
 
     #chart {
@@ -202,24 +203,80 @@
       height: 100%;
     }
 
-    /* RANGE SELECTOR (BOTTOM) */
+    #label-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .trade-box {
+      position: absolute;
+      background: rgba(19, 23, 34, 0.92);
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      line-height: 1.35;
+      color: #d1d4dc;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 6;
+    }
+
+    .trade-box.buy {
+      border: 1px solid var(--accent-green);
+      border-top: 3px solid var(--accent-green);
+    }
+
+    .trade-box.sell {
+      border: 1px solid var(--accent-red);
+      border-top: 3px solid var(--accent-red);
+    }
+
+    .trade-title {
+      font-weight: 700;
+      font-size: 10px;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .trade-box.buy .trade-title { color: var(--accent-green); }
+    .trade-box.sell .trade-title { color: var(--accent-red); }
+
+    .trade-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    /* BOTTOM BAR */
     .bottom-bar {
       background: var(--bg-panel);
       border-top: 1px solid var(--border);
-      padding: 4px 10px;
+      padding: 4px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       min-height: 32px;
+      font-family: var(--font-mono);
     }
 
     .time-badge {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      color: #00f3ff;
+      letter-spacing: 0.5px;
     }
 
-    /* MOBILE LANDSCAPE MODE */
+    /* MOBILE ADJUSTMENTS */
     @media screen and (orientation: landscape) and (max-height: 520px) {
       header {
         padding: 2px 8px;
@@ -239,6 +296,10 @@
       .btn {
         padding: 2px 5px;
         font-size: 10px;
+      }
+      .trade-box {
+        font-size: 8px;
+        padding: 3px 5px;
       }
     }
   </style>
@@ -278,9 +339,10 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART -->
+  <!-- CHART & LABEL OVERLAY -->
   <div id="chart-wrapper">
     <div id="chart"></div>
+    <div id="label-layer"></div>
   </div>
 
   <!-- BOTTOM BAR -->
@@ -291,10 +353,22 @@
       <button class="btn" data-range="1M">1M</button>
       <button class="btn" data-range="3M">3M</button>
     </div>
-    <div class="time-badge" id="clock-display">09:15 - 15:30 IST</div>
+    <div class="time-badge" id="clock-display">00:00:00 IST</div>
   </div>
 
   <script>
+    // --- 24-HOUR RUNNING CLOCK (IST) ---
+    function updateClock() {
+      const now = new Date();
+      const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
+      const hours = String(istTime.getHours()).padStart(2, '0');
+      const minutes = String(istTime.getMinutes()).padStart(2, '0');
+      const seconds = String(istTime.getSeconds()).padStart(2, '0');
+      document.getElementById('clock-display').innerText = `${hours}:${minutes}:${seconds} IST`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
     // --- INDIAN MARKET HOURS LOGIC ---
     function isIndianMarketOpen() {
       const now = new Date();
@@ -302,11 +376,13 @@
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930; // 09:15 to 15:30
+      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
     }
 
     // --- CHART INITIALIZATION ---
     const chartContainer = document.getElementById('chart');
+    const labelLayer = document.getElementById('label-layer');
+
     const chart = LightweightCharts.createChart(chartContainer, {
       layout: {
         background: { color: '#131722' },
@@ -352,13 +428,12 @@
     });
 
     const stopSeries = chart.addLineSeries({
-      color: 'rgba(255, 255, 255, 0.4)',
+      color: 'rgba(255, 255, 255, 0.45)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dotted,
       priceLineVisible: false,
     });
 
-    // Pane 1: Clean Sequential RSI Indicator
     const rsiSeries = chart.addLineSeries({
       color: '#9c27b0',
       lineWidth: 2,
@@ -373,17 +448,15 @@
     rsiSeries.createPriceLine({ price: 70, color: '#f23645', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OB 70' });
     rsiSeries.createPriceLine({ price: 30, color: '#089981', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OS 30' });
 
-    // --- CONTINUOUS RSI ENGINE ---
+    // --- INDICATORS MATH ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
-
       for (let i = 1; i <= period; i++) {
         const diff = candles[i].close - candles[i - 1].close;
         if (diff >= 0) gains += diff;
         else losses -= diff;
       }
-
       let avgGain = gains / period;
       let avgLoss = losses / period;
       let rsiData = [];
@@ -398,21 +471,19 @@
 
         let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
         let rsi = 100 - (100 / (1 + rs));
-
-        rsiData.push({
-          time: candles[i].time,
-          value: parseFloat(rsi.toFixed(2))
-        });
+        rsiData.push({ time: candles[i].time, value: parseFloat(rsi.toFixed(2)) });
       }
       return rsiData;
     }
 
-    // --- UT BOT ENGINE (ATR Trailing Alerts) ---
+    let activeSignals = [];
+
     function calculateUTBot(candles, key = 1, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
+      let signals = [];
       let trailingStop = candles[0].close;
-      let position = 0; // 1 = long, -1 = short
+      let position = 0;
 
       for (let i = 1; i < candles.length; i++) {
         const tr = Math.max(
@@ -421,30 +492,38 @@
           Math.abs(candles[i].low - candles[i - 1].close)
         );
         const nLoss = key * tr;
-        const close = candles[i].close;
+        const c = candles[i].close;
 
-        if (close > trailingStop) {
-          trailingStop = Math.max(trailingStop, close - nLoss);
+        if (c > trailingStop) {
+          trailingStop = Math.max(trailingStop, c - nLoss);
           if (position !== 1) {
             position = 1;
-            markers.push({
+            markers.push({ time: candles[i].time, position: 'belowBar', color: '#089981', shape: 'arrowUp', text: 'BUY' });
+            signals.push({
+              type: 'BUY',
               time: candles[i].time,
-              position: 'belowBar',
-              color: '#089981',
-              shape: 'arrowUp',
-              text: 'BUY',
+              price: c,
+              sl: parseFloat((c - nLoss).toFixed(2)),
+              t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
+              t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
+              vwapRel: 'Above (Strong)',
+              htf: 'Bullish'
             });
           }
         } else {
-          trailingStop = Math.min(trailingStop, close + nLoss);
+          trailingStop = Math.min(trailingStop, c + nLoss);
           if (position !== -1) {
             position = -1;
-            markers.push({
+            markers.push({ time: candles[i].time, position: 'aboveBar', color: '#f23645', shape: 'arrowDown', text: 'SELL' });
+            signals.push({
+              type: 'SELL',
               time: candles[i].time,
-              position: 'aboveBar',
-              color: '#f23645',
-              shape: 'arrowDown',
-              text: 'SELL',
+              price: c,
+              sl: parseFloat((c + nLoss).toFixed(2)),
+              t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
+              t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
+              vwapRel: 'Below (Strong)',
+              htf: 'Bearish'
             });
           }
         }
@@ -452,39 +531,74 @@
         stopLine.push({ time: candles[i].time, value: parseFloat(trailingStop.toFixed(2)) });
       }
 
-      return { markers, stopLine };
+      return { markers, stopLine, signals };
     }
 
-    // --- SYNTHETIC INDIAN MARKET SESSION DATA GENERATOR ---
-    let activeIntervalSec = 300; // default 5m
+    // --- RENDER FLOATING UT BOT TRADE LABELS ---
+    function updateLabelPositions() {
+      labelLayer.innerHTML = '';
+      if (!activeSignals.length) return;
+
+      // Only display the 2 most recent signals to keep charts clean and readable
+      const visibleSignals = activeSignals.slice(-2);
+
+      visibleSignals.forEach(sig => {
+        const x = chart.timeScale().timeToCoordinate(sig.time);
+        const y = candleSeries.priceToCoordinate(sig.price);
+
+        if (x !== null && y !== null && x > 30 && x < chartContainer.clientWidth - 40) {
+          const box = document.createElement('div');
+          box.className = `trade-box ${sig.type.toLowerCase()}`;
+          const isBuy = sig.type === 'BUY';
+          const offsetY = isBuy ? y + 25 : y - 15;
+
+          box.style.left = `${x}px`;
+          box.style.top = `${offsetY}px`;
+          box.innerHTML = `
+            <div class="trade-title">${isBuy ? '▲ BUY CONFIRMED' : '▼ SELL CONFIRMED'}</div>
+            <div class="trade-row"><span>Entry:</span><strong>${sig.price.toFixed(2)}</strong></div>
+            <div class="trade-row"><span>SL (UT):</span><span>${sig.sl}</span></div>
+            <div class="trade-row"><span>T1 (1:1.5):</span><span>${sig.t1}</span></div>
+            <div class="trade-row"><span>T2 (1:2.5):</span><span>${sig.t2}</span></div>
+            <div class="trade-row"><span>VWAP:</span><span>${sig.vwapRel}</span></div>
+            <div class="trade-row"><span>HTF:</span><span>${sig.htf}</span></div>
+          `;
+          labelLayer.appendChild(box);
+        }
+      });
+    }
+
+    // --- SYNTHETIC INDIAN MARKET SESSION GENERATOR ---
+    let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
 
-    function generateIndianSessionCandles() {
+    function generateMarketAlignedCandles() {
+      // Pin strictly to today's 09:15 AM IST
       const now = new Date();
       const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
-      
-      // Fixed session start anchor at 09:15 IST
-      let sessionStart = new Date(istNow);
-      sessionStart.setHours(9, 15, 0, 0);
+      const year = istNow.getFullYear();
+      const month = istNow.getMonth();
+      const date = istNow.getDate();
 
-      // Convert back to UTC unix seconds
-      let baseTime = Math.floor((sessionStart.getTime() - (5.5 * 3600000)) / 1000);
-      let currentPrice = 25000.0;
+      // UTC timestamp representing 09:15 IST
+      const baseSessionStartSec = Math.floor(Date.UTC(year, month, date, 9 - 5, 15 - 30, 0) / 1000);
+
+      let currentPrice = 25010.0;
       let cData = [];
       let emaData = [];
       let vwapData = [];
       let cumVol = 0, cumVolPrice = 0;
 
       for (let i = 0; i < activeBarsCount; i++) {
-        const delta = (Math.random() - 0.49) * 22;
+        const delta = (Math.random() - 0.49) * 20;
         const open = currentPrice;
         const close = Math.round((open + delta) * 100) / 100;
-        const high = Math.round((Math.max(open, close) + Math.random() * 10) * 100) / 100;
-        const low = Math.round((Math.min(open, close) - Math.random() * 10) * 100) / 100;
-        const vol = Math.floor(Math.random() * 400) + 120;
-        const barTime = baseTime + (i * activeIntervalSec);
+        const high = Math.round((Math.max(open, close) + Math.random() * 8) * 100) / 100;
+        const low = Math.round((Math.min(open, close) - Math.random() * 8) * 100) / 100;
+        const vol = Math.floor(Math.random() * 350) + 120;
+        const barTime = baseSessionStartSec + (i * activeIntervalSec);
 
         cData.push({ time: barTime, open, high, low, close, volume: vol });
 
@@ -492,7 +606,6 @@
         cumVolPrice += ((high + low + close) / 3) * vol;
         vwapData.push({ time: barTime, value: parseFloat((cumVolPrice / cumVol).toFixed(2)) });
 
-        // Simple moving average preview for EMA 20
         let ema = close;
         if (i > 0) ema = (close * 0.095) + (emaData[i - 1].value * 0.905);
         emaData.push({ time: barTime, value: parseFloat(ema.toFixed(2)) });
@@ -502,20 +615,18 @@
 
       globalCandles = cData;
 
-      // Render chart layers
       candleSeries.setData(globalCandles);
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      // RSI & UT Bot
       const rsiPoints = calculateRSI(globalCandles);
       rsiSeries.setData(rsiPoints);
 
       const ut = calculateUTBot(globalCandles);
       candleSeries.setMarkers(ut.markers);
       stopSeries.setData(ut.stopLine);
+      activeSignals = ut.signals;
 
-      // Update Ticker Stats
       const last = globalCandles[globalCandles.length - 1];
       document.getElementById('val-ltp').innerText = last.close.toFixed(2);
       document.getElementById('val-open').innerText = last.open.toFixed(2);
@@ -527,9 +638,9 @@
       document.getElementById('val-ut').innerText = ut.stopLine[ut.stopLine.length - 1]?.value || '--';
 
       chart.timeScale().fitContent();
+      setTimeout(updateLabelPositions, 100);
     }
 
-    // --- ENGINE SCHEDULER & REAL-TIME TICKS ---
     function runEngine() {
       const badge = document.getElementById('feed-status');
       const marketOpen = isIndianMarketOpen();
@@ -544,10 +655,10 @@
         }
       }
 
-      generateIndianSessionCandles();
+      generateMarketAlignedCandles();
 
       if (tickTimer) clearInterval(tickTimer);
-      if (!marketOpen) return; // Keep frozen outside 09:15 - 15:30
+      if (!marketOpen) return;
 
       let activeBar = { ...globalCandles[globalCandles.length - 1] };
       tickTimer = setInterval(() => {
@@ -571,11 +682,12 @@
           document.getElementById('val-high').innerText = activeBar.high.toFixed(2);
           document.getElementById('val-low').innerText = activeBar.low.toFixed(2);
           document.getElementById('val-close').innerText = activeBar.close.toFixed(2);
+          updateLabelPositions();
         });
       }, 3000);
     }
 
-    // --- TIMEFRAME BUTTONS (1m, 5m, 15m) ---
+    // --- TIMEFRAMES ---
     document.querySelectorAll('#tf-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#tf-group .btn').forEach(b => b.classList.remove('active'));
@@ -588,7 +700,7 @@
       });
     });
 
-    // --- RANGE BUTTONS (1D, 5D, 1M, 3M) ---
+    // --- RANGES ---
     document.querySelectorAll('#range-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#range-group .btn').forEach(b => b.classList.remove('active'));
@@ -602,12 +714,11 @@
       });
     });
 
-    // --- REFRESH BUTTON ---
+    // --- BUTTON ACTIONS ---
     document.getElementById('btn-refresh').addEventListener('click', () => {
       runEngine();
     });
 
-    // --- FULLSCREEN & ROTATE TOGGLE BUTTON ---
     document.getElementById('btn-fullscreen').addEventListener('click', () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -617,7 +728,6 @@
       setTimeout(handleResize, 150);
     });
 
-    // --- RESIZE AND ROTATION LISTENER ---
     function handleResize() {
       const container = document.getElementById('chart-wrapper');
       if (container && chart) {
@@ -626,13 +736,15 @@
           height: container.clientHeight,
         });
         chart.timeScale().fitContent();
+        updateLabelPositions();
       }
     }
 
     window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
+    window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateLabelPositions());
 
-    // STARTUP
+    // START
     runEngine();
     setTimeout(handleResize, 100);
   </script>
