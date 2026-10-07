@@ -20,6 +20,7 @@
       --accent-blue: #2962ff;
       --accent-cyan: #00f3ff;
       --accent-amber: #f0b90b;
+      --accent-vix: #e040fb;
       --font-mono: 'JetBrains Mono', monospace;
       --font-sans: 'Inter', sans-serif;
     }
@@ -57,7 +58,7 @@
       justify-content: space-between;
       gap: 8px;
       flex-wrap: nowrap;
-      min-height: 48px;
+      min-height: 46px;
       z-index: 10;
     }
 
@@ -72,7 +73,7 @@
     .brand-logo {
       font-family: var(--font-mono);
       font-weight: 700;
-      font-size: 14px;
+      font-size: 13px;
       letter-spacing: 1px;
       color: #fff;
     }
@@ -150,16 +151,15 @@
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--accent-cyan);
       box-shadow: 0 0 8px currentColor;
     }
 
-    /* INFO TICKER BAR */
+    /* TICKER STATS BAR */
     .ticker-bar {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 6px 14px;
+      gap: 14px;
+      padding: 5px 14px;
       background: #161922;
       border-bottom: 1px solid var(--border);
       font-family: var(--font-mono);
@@ -168,16 +168,22 @@
       white-space: nowrap;
     }
 
-    .ticker-symbol {
+    .ticker-tag {
       font-weight: 700;
-      font-size: 13px;
+      font-size: 12px;
       color: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
 
-    .ticker-price {
+    .vix-tag {
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(224, 64, 251, 0.15);
+      border: 1px solid rgba(224, 64, 251, 0.4);
+      color: var(--accent-vix);
       font-weight: 700;
-      font-size: 13px;
-      color: var(--accent-green);
     }
 
     .stat-label {
@@ -189,7 +195,7 @@
       font-weight: 600;
     }
 
-    /* CHART CONTAINER & LABELS */
+    /* CHART WRAPPER */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
@@ -203,54 +209,44 @@
       height: 100%;
     }
 
-    #label-layer {
+    /* PINNED HUD TRADE SIGNAL CARD */
+    #hud-panel {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .trade-box {
-      position: absolute;
-      background: rgba(19, 23, 34, 0.94);
-      border-radius: 4px;
-      padding: 6px 9px;
+      top: 10px;
+      right: 65px;
+      background: rgba(19, 23, 34, 0.92);
+      border-radius: 6px;
+      padding: 8px 12px;
       font-family: var(--font-mono);
-      font-size: 9px;
-      line-height: 1.4;
+      font-size: 10px;
+      line-height: 1.45;
       color: #d1d4dc;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-      transform: translate(-50%, -100%);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
       pointer-events: none;
-      white-space: nowrap;
-      z-index: 6;
+      z-index: 8;
       border: 1px solid var(--border);
+      min-width: 175px;
+      backdrop-filter: blur(4px);
     }
 
-    .trade-box.buy {
+    #hud-panel.buy {
       border-top: 3px solid var(--accent-green);
     }
 
-    .trade-box.sell {
+    #hud-panel.sell {
       border-top: 3px solid var(--accent-red);
     }
 
-    .trade-title {
+    .hud-title {
       font-weight: 700;
-      font-size: 10px;
-      margin-bottom: 3px;
+      font-size: 11px;
+      margin-bottom: 4px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      justify-content: space-between;
     }
 
-    .trade-box.buy .trade-title { color: var(--accent-green); }
-    .trade-box.sell .trade-title { color: var(--accent-red); }
-
-    .trade-row {
+    .hud-row {
       display: flex;
       justify-content: space-between;
       gap: 12px;
@@ -285,7 +281,13 @@
         font-size: 10px;
       }
       #chart-wrapper {
-        height: calc(100vh - 68px);
+        height: calc(100vh - 66px);
+      }
+      #hud-panel {
+        top: 6px;
+        right: 60px;
+        padding: 4px 8px;
+        font-size: 9px;
       }
       .bottom-bar {
         min-height: 24px;
@@ -294,10 +296,6 @@
       .btn {
         padding: 2px 5px;
         font-size: 10px;
-      }
-      .trade-box {
-        font-size: 8px;
-        padding: 3px 6px;
       }
     }
   </style>
@@ -324,10 +322,10 @@
     </div>
   </header>
 
-  <!-- TICKER BAR -->
+  <!-- TICKER STATS BAR (WITH INDIA VIX) -->
   <div class="ticker-bar">
-    <span class="ticker-symbol">NIFTY 50</span>
-    <span class="ticker-price" id="val-ltp">25,000.00</span>
+    <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">25,000.00</span></span>
+    <span class="vix-tag">INDIA VIX: <span id="val-vix">13.42 (-1.8%)</span></span>
     <span><span class="stat-label">O:</span> <span class="stat-val" id="val-open">--</span></span>
     <span><span class="stat-label">H:</span> <span class="stat-val" id="val-high">--</span></span>
     <span><span class="stat-label">L:</span> <span class="stat-val" id="val-low">--</span></span>
@@ -337,10 +335,21 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & LABEL OVERLAY -->
+  <!-- CHART & PINNED HUD -->
   <div id="chart-wrapper">
     <div id="chart"></div>
-    <div id="label-layer"></div>
+    <div id="hud-panel" class="buy">
+      <div class="hud-title">
+        <span id="hud-type" style="color:var(--accent-green)">▲ BUY ACTIVE</span>
+        <span id="hud-time">--</span>
+      </div>
+      <div class="hud-row"><span>Entry:</span><strong id="hud-entry">--</strong></div>
+      <div class="hud-row"><span>SL (UT):</span><span id="hud-sl">--</span></div>
+      <div class="hud-row"><span>Target 1:</span><span id="hud-t1">--</span></div>
+      <div class="hud-row"><span>Target 2:</span><span id="hud-t2">--</span></div>
+      <div class="hud-row"><span>VWAP Bias:</span><span id="hud-vwap">Above</span></div>
+      <div class="hud-row"><span>HTF Trend:</span><span id="hud-htf">Bullish</span></div>
+    </div>
   </div>
 
   <!-- BOTTOM BAR -->
@@ -379,7 +388,6 @@
 
     // --- CHART INITIALIZATION ---
     const chartContainer = document.getElementById('chart');
-    const labelLayer = document.getElementById('label-layer');
 
     const chart = LightweightCharts.createChart(chartContainer, {
       layout: {
@@ -432,6 +440,7 @@
       priceLineVisible: false,
     });
 
+    // Sub-pane: Continuous RSI (Wilder's RMA 14)
     const rsiSeries = chart.addLineSeries({
       color: '#9c27b0',
       lineWidth: 2,
@@ -446,7 +455,7 @@
     rsiSeries.createPriceLine({ price: 70, color: '#f23645', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OB 70' });
     rsiSeries.createPriceLine({ price: 30, color: '#089981', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OS 30' });
 
-    // --- CONTINUOUS RSI MATH ---
+    // --- CONTINUOUS RSI ENGINE ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
@@ -474,13 +483,11 @@
       return rsiData;
     }
 
-    let activeSignals = [];
-
-    // --- UT BOT ENGINE & TRADE SIGNALS ---
+    // --- UT BOT ENGINE (ATR Trailing Alerts + Clean Native Markers) ---
     function calculateUTBot(candles, key = 1, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
-      let signals = [];
+      let lastSignal = null;
       let trailingStop = candles[0].close;
       let position = 0;
 
@@ -497,76 +504,71 @@
           trailingStop = Math.max(trailingStop, c - nLoss);
           if (position !== 1) {
             position = 1;
-            markers.push({ time: candles[i].time, position: 'belowBar', color: '#089981', shape: 'arrowUp', text: 'BUY' });
-            signals.push({
-              type: 'BUY',
+            markers.push({
               time: candles[i].time,
+              position: 'belowBar',
+              color: '#089981',
+              shape: 'arrowUp',
+              text: 'BUY',
+            });
+            lastSignal = {
+              type: 'BUY',
               price: c,
               sl: parseFloat((c - nLoss).toFixed(2)),
               t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
               t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
-              vwapRel: 'Above (Strong)',
+              vwapRel: 'Above VWAP',
               htf: 'Bullish'
-            });
+            };
           }
         } else {
           trailingStop = Math.min(trailingStop, c + nLoss);
           if (position !== -1) {
             position = -1;
-            markers.push({ time: candles[i].time, position: 'aboveBar', color: '#f23645', shape: 'arrowDown', text: 'SELL' });
-            signals.push({
-              type: 'SELL',
+            markers.push({
               time: candles[i].time,
+              position: 'aboveBar',
+              color: '#f23645',
+              shape: 'arrowDown',
+              text: 'SELL',
+            });
+            lastSignal = {
+              type: 'SELL',
               price: c,
               sl: parseFloat((c + nLoss).toFixed(2)),
               t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
               t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
-              vwapRel: 'Below (Strong)',
+              vwapRel: 'Below VWAP',
               htf: 'Bearish'
-            });
+            };
           }
         }
 
         stopLine.push({ time: candles[i].time, value: parseFloat(trailingStop.toFixed(2)) });
       }
 
-      return { markers, stopLine, signals };
+      return { markers, stopLine, lastSignal };
     }
 
-    // --- RENDER FLOATING UT BOT TRADE LABELS ---
-    function updateLabelPositions() {
-      labelLayer.innerHTML = '';
-      if (!activeSignals.length) return;
+    // --- HUD SIGNAL BOX UPDATE ---
+    function updateHUD(signal) {
+      if (!signal) return;
+      const hud = document.getElementById('hud-panel');
+      const hudType = document.getElementById('hud-type');
 
-      const visibleSignals = activeSignals.slice(-3);
+      hud.className = signal.type.toLowerCase();
+      hudType.innerText = signal.type === 'BUY' ? '▲ BUY ACTIVE' : '▼ SELL ACTIVE';
+      hudType.style.color = signal.type === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)';
 
-      visibleSignals.forEach(sig => {
-        const x = chart.timeScale().timeToCoordinate(sig.time);
-        const y = candleSeries.priceToCoordinate(sig.price);
-
-        if (x !== null && y !== null && x > 20 && x < chartContainer.clientWidth - 30) {
-          const box = document.createElement('div');
-          box.className = `trade-box ${sig.type.toLowerCase()}`;
-          const isBuy = sig.type === 'BUY';
-          const offsetY = isBuy ? y + 25 : y - 20;
-
-          box.style.left = `${x}px`;
-          box.style.top = `${offsetY}px`;
-          box.innerHTML = `
-            <div class="trade-title">${isBuy ? '▲ BUY CONFIRMED' : '▼ SELL CONFIRMED'}</div>
-            <div class="trade-row"><span>Entry:</span><strong>${sig.price.toFixed(2)}</strong></div>
-            <div class="trade-row"><span>SL (UT):</span><span>${sig.sl}</span></div>
-            <div class="trade-row"><span>T1 (1:1.5):</span><span>${sig.t1}</span></div>
-            <div class="trade-row"><span>T2 (1:2.5):</span><span>${sig.t2}</span></div>
-            <div class="trade-row"><span>VWAP:</span><span>${sig.vwapRel}</span></div>
-            <div class="trade-row"><span>HTF:</span><span>${sig.htf}</span></div>
-          `;
-          labelLayer.appendChild(box);
-        }
-      });
+      document.getElementById('hud-entry').innerText = signal.price.toFixed(2);
+      document.getElementById('hud-sl').innerText = signal.sl.toFixed(2);
+      document.getElementById('hud-t1').innerText = signal.t1.toFixed(2);
+      document.getElementById('hud-t2').innerText = signal.t2.toFixed(2);
+      document.getElementById('hud-vwap').innerText = signal.vwapRel;
+      document.getElementById('hud-htf').innerText = signal.htf;
     }
 
-    // --- SESSION DATA GENERATOR (PINNED TO 09:15 IST) ---
+    // --- SESSION DATA GENERATOR ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
@@ -574,9 +576,8 @@
 
     function generateMarketAlignedCandles() {
       const now = new Date();
-      // Zero out to UTC day boundary and add 09:15:00 in seconds
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
-      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // 09:15 AM IST
+      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // Pinned to 09:15 AM
 
       let currentPrice = 25010.0;
       let cData = [];
@@ -618,7 +619,11 @@
       const ut = calculateUTBot(globalCandles);
       candleSeries.setMarkers(ut.markers);
       stopSeries.setData(ut.stopLine);
-      activeSignals = ut.signals;
+      updateHUD(ut.lastSignal);
+
+      // India VIX generation
+      const baseVix = 13.40 + (Math.random() * 0.2 - 0.1);
+      document.getElementById('val-vix').innerText = `${baseVix.toFixed(2)} (-1.4%)`;
 
       const last = globalCandles[globalCandles.length - 1];
       document.getElementById('val-ltp').innerText = last.close.toFixed(2);
@@ -631,7 +636,6 @@
       document.getElementById('val-ut').innerText = ut.stopLine[ut.stopLine.length - 1]?.value || '--';
 
       chart.timeScale().fitContent();
-      setTimeout(updateLabelPositions, 100);
     }
 
     function runEngine() {
@@ -675,7 +679,6 @@
           document.getElementById('val-high').innerText = activeBar.high.toFixed(2);
           document.getElementById('val-low').innerText = activeBar.low.toFixed(2);
           document.getElementById('val-close').innerText = activeBar.close.toFixed(2);
-          updateLabelPositions();
         });
       }, 3000);
     }
@@ -712,7 +715,7 @@
       runEngine();
     });
 
-    // --- REAL MOBILE ORIENTATION LOCK & ROTATE TOGGLE ---
+    // --- ROTATE / FULLSCREEN ---
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       try {
         if (!document.fullscreenElement) {
@@ -727,7 +730,6 @@
           await document.exitFullscreen();
         }
       } catch (err) {
-        // Fallback for browsers with restricted auto-lock
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
         } else {
@@ -745,13 +747,11 @@
           height: container.clientHeight,
         });
         chart.timeScale().fitContent();
-        updateLabelPositions();
       }
     }
 
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
-    chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateLabelPositions());
 
     // STARTUP
     runEngine();
