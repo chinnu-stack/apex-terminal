@@ -219,6 +219,7 @@
       z-index: 5;
     }
 
+    /* PER-SIGNAL SETUP CARDS (SCREENSHOT 82 RESTORATION) */
     .trade-setup-card {
       position: absolute;
       background: rgba(22, 26, 37, 0.95);
@@ -351,7 +352,7 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & LABEL OVERLAY LAYER -->
+  <!-- CHART & LABEL OVERLAYS -->
   <div id="chart-wrapper">
     <div id="chart"></div>
     <div id="label-layer"></div>
@@ -388,7 +389,7 @@
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930;
+      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
     }
 
     // --- INITIALIZE CHART ---
@@ -452,7 +453,6 @@
       borderColor: '#363c4e',
     });
 
-    // Area Series providing the light red shading between 45 and 55
     const rsiBgShade = chart.addAreaSeries({
       priceScaleId: 'rsi',
       topColor: 'rgba(242, 54, 69, 0.18)',
@@ -468,7 +468,6 @@
       priceScaleId: 'rsi',
     });
 
-    // Explicit lines at 55 and 45
     rsiSeries.createPriceLine({
       price: 55,
       color: '#f23645',
@@ -659,9 +658,7 @@
         if (i > 0) ema = (close * 0.095) + (emaData[i - 1].value * 0.905);
         emaData.push({ time: barTime, value: parseFloat(ema.toFixed(2)) });
 
-        // Fixed 55 level for shaded background area
         rsiBgData.push({ time: barTime, value: 55 });
-
         currentPrice = close;
       }
 
@@ -671,7 +668,6 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      // Shaded band between 45 and 55
       rsiBgShade.setData(rsiBgData);
       rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
 
