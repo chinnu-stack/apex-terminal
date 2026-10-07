@@ -209,7 +209,7 @@
       font-weight: 600;
     }
 
-    /* CHART CONTAINER & FLOATING CARDS */
+    /* FULL HEIGHT CHART CONTAINER */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
@@ -233,6 +233,7 @@
       z-index: 5;
     }
 
+    /* CLEAN TRADE SETUP CARDS */
     .trade-setup-card {
       position: absolute;
       background: rgba(20, 24, 35, 0.94);
@@ -384,6 +385,7 @@
   </div>
 
   <script>
+    // --- 24-HOUR IST RUNNING CLOCK ---
     function updateClock() {
       const now = new Date();
       const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
@@ -395,16 +397,17 @@
     setInterval(updateClock, 1000);
     updateClock();
 
+    // --- INDIAN MARKET HOURS CHECK ---
     function isIndianMarketOpen() {
       const now = new Date();
       const istDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930;
+      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
     }
 
-    // 85% CANDLESTICK CANVAS
+    // --- INITIALIZE CHART (FULL VERTICAL PROPORTIONS) ---
     const chartContainer = document.getElementById('chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -430,7 +433,7 @@
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.05, bottom: 0.18 }, // 85% of total height for candles
+        scaleMargins: { top: 0.10, bottom: 0.10 }, // Clean 10% margins top & bottom
       }
     });
 
@@ -461,73 +464,9 @@
       priceLineVisible: false,
     });
 
-    // 15% RSI SUB-PANE
-    chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0.02 }, // strictly confined to bottom 15%
-      borderColor: '#363c4e',
-    });
-
-    const rsiBgShade = chart.addAreaSeries({
-      priceScaleId: 'rsi',
-      topColor: 'rgba(242, 54, 69, 0.16)',
-      bottomColor: 'rgba(242, 54, 69, 0.16)',
-      lineColor: 'rgba(242, 54, 69, 0.45)',
-      lineWidth: 1,
-      priceLineVisible: false,
-    });
-
-    const rsiSeries = chart.addLineSeries({
-      color: '#9c27b0',
-      lineWidth: 2,
-      priceScaleId: 'rsi',
-    });
-
-    rsiSeries.createPriceLine({
-      price: 55,
-      color: '#f23645',
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: '55.00'
-    });
-
-    rsiSeries.createPriceLine({
-      price: 45,
-      color: '#089981',
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: '45.00'
-    });
-
-    function calculateRSI(candles, period = 14) {
-      if (candles.length < period + 1) return [];
-      let gains = 0, losses = 0;
-      for (let i = 1; i <= period; i++) {
-        const diff = candles[i].close - candles[i - 1].close;
-        if (diff >= 0) gains += diff;
-        else losses -= diff;
-      }
-      let avgGain = gains / period;
-      let avgLoss = losses / period;
-      let rsiData = [];
-
-      for (let i = period + 1; i < candles.length; i++) {
-        const diff = candles[i].close - candles[i - 1].close;
-        const gain = diff > 0 ? diff : 0;
-        const loss = diff < 0 ? -diff : 0;
-
-        avgGain = (avgGain * (period - 1) + gain) / period;
-        avgLoss = (avgLoss * (period - 1) + loss) / period;
-
-        let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-        let rsi = 100 - (100 / (1 + rs));
-        rsiData.push({ time: candles[i].time, value: parseFloat(rsi.toFixed(2)) });
-      }
-      return rsiData;
-    }
-
     let allGeneratedSignals = [];
 
-    // UT BOT ENGINE WITH SYNCHRONIZED BUY & SELL ARROWS
+    // --- UT BOT ENGINE (CLEAN BUY & SELL ARROWS + METRICS) ---
     function calculateUTBot(candles, key = 1.2, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -607,6 +546,7 @@
       return { markers, stopLine, signals };
     }
 
+    // --- ACCURATE SIGNAL CARD POSITIONING ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -623,9 +563,10 @@
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
 
+          // Proper clearance so the arrows and labels stay visible
           const topPos = isBuy 
-            ? Math.min(y + 24, containerHeight - 165)
-            : Math.max(y - 128, 15);
+            ? Math.min(y + 30, containerHeight - 145)
+            : Math.max(y - 135, 12);
           const leftPos = Math.max(x - 55, 10);
 
           card.style.left = `${leftPos}px`;
@@ -646,7 +587,8 @@
       });
     }
 
-    let activeIntervalSec = 300;
+    // --- INTRADAY SESSION GENERATOR ---
+    let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
@@ -661,7 +603,6 @@
       let cData = [];
       let emaData = [];
       let vwapData = [];
-      let rsiBgData = [];
       let cumVol = 0, cumVolPrice = 0;
       let currentPrice = openAnchor;
 
@@ -688,7 +629,6 @@
         if (i > 0) ema = (close * 0.095) + (emaData[i - 1].value * 0.905);
         emaData.push({ time: barTime, value: parseFloat(ema.toFixed(2)) });
 
-        rsiBgData.push({ time: barTime, value: 55 });
         currentPrice = close;
       }
 
@@ -697,12 +637,6 @@
       candleSeries.setData(globalCandles);
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
-
-      rsiBgShade.setData(rsiBgData);
-      rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
-
-      const rsiPoints = calculateRSI(globalCandles);
-      rsiSeries.setData(rsiPoints);
 
       const ut = calculateUTBot(globalCandles);
       candleSeries.setMarkers(ut.markers);
@@ -773,6 +707,7 @@
       }, 3000);
     }
 
+    // --- TIMEFRAMES ---
     document.querySelectorAll('#tf-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#tf-group .btn').forEach(b => b.classList.remove('active'));
@@ -785,6 +720,7 @@
       });
     });
 
+    // --- RANGES ---
     document.querySelectorAll('#range-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#range-group .btn').forEach(b => b.classList.remove('active'));
@@ -798,10 +734,12 @@
       });
     });
 
+    // --- REFRESH ---
     document.getElementById('btn-refresh').addEventListener('click', () => {
       runEngine();
     });
 
+    // --- ROTATE / FULLSCREEN ---
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       try {
         if (!document.fullscreenElement) {
@@ -841,6 +779,7 @@
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateAllSignalLabels());
 
+    // STARTUP
     runEngine();
     setTimeout(handleResize, 100);
   </script>
