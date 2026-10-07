@@ -195,7 +195,7 @@
       font-weight: 600;
     }
 
-    /* CHART WRAPPER & INDIVIDUAL FLOATING LABELS */
+    /* MAIN CHART CONTAINER & EMBEDDED LABEL OVERLAYS */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
@@ -216,17 +216,16 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 6;
-      overflow: hidden;
+      z-index: 5;
     }
 
     .trade-setup-card {
       position: absolute;
-      background: rgba(22, 26, 37, 0.94);
-      border-radius: 5px;
-      padding: 6px 9px;
+      background: rgba(22, 26, 37, 0.95);
+      border-radius: 4px;
+      padding: 5px 8px;
       font-family: var(--font-mono);
-      font-size: 8.5px;
+      font-size: 8px;
       line-height: 1.35;
       color: #d1d4dc;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
@@ -234,8 +233,7 @@
       white-space: nowrap;
       z-index: 6;
       border: 1px solid var(--border);
-      backdrop-filter: blur(3px);
-      transition: opacity 0.1s ease;
+      backdrop-filter: blur(4px);
     }
 
     .trade-setup-card.buy {
@@ -248,11 +246,11 @@
 
     .card-title {
       font-weight: 700;
-      font-size: 9px;
-      margin-bottom: 3px;
+      font-size: 8.5px;
+      margin-bottom: 2px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
 
     .trade-setup-card.buy .card-title { color: var(--accent-green); }
@@ -261,7 +259,7 @@
     .card-row {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
     }
 
     .card-row span:first-child {
@@ -304,8 +302,8 @@
         height: calc(100vh - 66px);
       }
       .trade-setup-card {
-        padding: 4px 6px;
-        font-size: 8px;
+        padding: 3px 5px;
+        font-size: 7.5px;
       }
       .bottom-bar {
         min-height: 24px;
@@ -353,7 +351,7 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & LABEL OVERLAY -->
+  <!-- CHART & LABEL OVERLAY LAYER -->
   <div id="chart-wrapper">
     <div id="chart"></div>
     <div id="label-layer"></div>
@@ -371,7 +369,7 @@
   </div>
 
   <script>
-    // --- RUNNING 24-HOUR IST CLOCK ---
+    // --- 24-HOUR IST RUNNING CLOCK ---
     function updateClock() {
       const now = new Date();
       const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
@@ -383,17 +381,17 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // --- INDIAN MARKET HOURS LOGIC ---
+    // --- INDIAN MARKET HOURS CHECK ---
     function isIndianMarketOpen() {
       const now = new Date();
       const istDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
+      return mins >= 555 && mins <= 930;
     }
 
-    // --- CHART INITIALIZATION ---
+    // --- INITIALIZE CHART ---
     const chartContainer = document.getElementById('chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -417,7 +415,7 @@
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.08, bottom: 0.26 },
+        scaleMargins: { top: 0.08, bottom: 0.28 },
       }
     });
 
@@ -448,17 +446,17 @@
       priceLineVisible: false,
     });
 
-    // --- RSI PANE (ISOLATED BOTTOM SCALE: 45 LOWER, 55 UPPER, LIGHT RED FILL) ---
+    // --- RSI PANE (45 LOWER, 55 UPPER, LIGHT RED COLOR FILL) ---
     chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.80, bottom: 0.02 },
+      scaleMargins: { top: 0.78, bottom: 0.02 },
       borderColor: '#363c4e',
     });
 
-    // Light-red tinted area between 45 and 55
-    const rsiBgAreaSeries = chart.addAreaSeries({
+    // Area Series providing the light red shading between 45 and 55
+    const rsiBgShade = chart.addAreaSeries({
       priceScaleId: 'rsi',
-      topColor: 'rgba(242, 54, 69, 0.16)',
-      bottomColor: 'rgba(242, 54, 69, 0.16)',
+      topColor: 'rgba(242, 54, 69, 0.18)',
+      bottomColor: 'rgba(242, 54, 69, 0.18)',
       lineColor: 'rgba(242, 54, 69, 0.50)',
       lineWidth: 1,
       priceLineVisible: false,
@@ -470,6 +468,7 @@
       priceScaleId: 'rsi',
     });
 
+    // Explicit lines at 55 and 45
     rsiSeries.createPriceLine({
       price: 55,
       color: '#f23645',
@@ -486,7 +485,7 @@
       title: '45.00'
     });
 
-    // --- CONTINUOUS RSI MATH ---
+    // --- CONTINUOUS RSI FORMULA ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
@@ -516,7 +515,7 @@
 
     let allGeneratedSignals = [];
 
-    // --- UT BOT ENGINE (ATR Trailing Alerts + Detailed Signal Cards) ---
+    // --- UT BOT ENGINE ---
     function calculateUTBot(candles, key = 1, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -545,7 +544,6 @@
               text: 'BUY',
             });
             signals.push({
-              id: 'sig-' + candles[i].time,
               type: 'BUY',
               time: candles[i].time,
               price: c,
@@ -568,7 +566,6 @@
               text: 'SELL',
             });
             signals.push({
-              id: 'sig-' + candles[i].time,
               type: 'SELL',
               time: candles[i].time,
               price: c,
@@ -587,7 +584,7 @@
       return { markers, stopLine, signals };
     }
 
-    // --- RENDER DYNAMIC LABEL CARDS ANCHORED TO EACH SIGNAL CANDLE ---
+    // --- INDIVIDUAL SIGNAL LABELS ANCHORED TO CANDLES ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -599,15 +596,13 @@
         const x = chart.timeScale().timeToCoordinate(sig.time);
         const y = candleSeries.priceToCoordinate(sig.price);
 
-        // Keep cards strictly visible when in chart bounds
-        if (x !== null && y !== null && x > 20 && x < (containerWidth - 110)) {
+        if (x !== null && y !== null && x > 15 && x < (containerWidth - 95)) {
           const card = document.createElement('div');
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
 
-          // Place Buy setup boxes below the arrow and Sell setup boxes above the arrow
-          const topPos = isBuy ? Math.min(y + 22, containerHeight - 165) : Math.max(y - 125, 20);
-          const leftPos = Math.max(x - 55, 10);
+          const topPos = isBuy ? Math.min(y + 20, containerHeight - 150) : Math.max(y - 120, 25);
+          const leftPos = Math.max(x - 50, 10);
 
           card.style.left = `${leftPos}px`;
           card.style.top = `${topPos}px`;
@@ -627,7 +622,7 @@
       });
     }
 
-    // --- SESSION DATA GENERATOR PINNED TO 09:15 IST ---
+    // --- MARKET DATA GENERATION (ANCHORED TO 09:15 IST) ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
@@ -636,7 +631,7 @@
     function generateMarketAlignedCandles() {
       const now = new Date();
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
-      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // 09:15 AM
+      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60);
 
       let currentPrice = 25010.0;
       let cData = [];
@@ -664,7 +659,7 @@
         if (i > 0) ema = (close * 0.095) + (emaData[i - 1].value * 0.905);
         emaData.push({ time: barTime, value: parseFloat(ema.toFixed(2)) });
 
-        // Fixed Upper 55 value for shaded RSI background area
+        // Fixed 55 level for shaded background area
         rsiBgData.push({ time: barTime, value: 55 });
 
         currentPrice = close;
@@ -676,9 +671,9 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      // Shaded RSI background (upper 55 threshold with baseline down to 45)
-      rsiBgAreaSeries.setData(rsiBgData);
-      rsiBgAreaSeries.applyOptions({ baseValue: { type: 'price', price: 45 } });
+      // Shaded band between 45 and 55
+      rsiBgShade.setData(rsiBgData);
+      rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
 
       const rsiPoints = calculateRSI(globalCandles);
       rsiSeries.setData(rsiPoints);
