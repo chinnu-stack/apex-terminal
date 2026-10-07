@@ -233,7 +233,6 @@
       z-index: 5;
     }
 
-    /* SPATIAL TRADE SETUP CARDS (SCREENSHOT 82 RESTORATION) */
     .trade-setup-card {
       position: absolute;
       background: rgba(20, 24, 35, 0.94);
@@ -385,7 +384,6 @@
   </div>
 
   <script>
-    // --- 24-HOUR IST RUNNING CLOCK ---
     function updateClock() {
       const now = new Date();
       const istTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
@@ -397,17 +395,16 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // --- INDIAN MARKET HOURS CHECK ---
     function isIndianMarketOpen() {
       const now = new Date();
       const istDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
+      return mins >= 555 && mins <= 930;
     }
 
-    // --- INITIALIZE CHART ---
+    // 85% CANDLESTICK CANVAS
     const chartContainer = document.getElementById('chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -433,7 +430,7 @@
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.05, bottom: 0.22 }, // Preserves 78% of chart for candlesticks
+        scaleMargins: { top: 0.05, bottom: 0.18 }, // 85% of total height for candles
       }
     });
 
@@ -464,9 +461,9 @@
       priceLineVisible: false,
     });
 
-    // --- ISOLATED RSI STRIP (LOWER 15% OF CANVAS, NO SCALE COLLAPSE) ---
+    // 15% RSI SUB-PANE
     chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.84, bottom: 0.02 },
+      scaleMargins: { top: 0.85, bottom: 0.02 }, // strictly confined to bottom 15%
       borderColor: '#363c4e',
     });
 
@@ -480,7 +477,7 @@
     });
 
     const rsiSeries = chart.addLineSeries({
-      color: '#c155e8',
+      color: '#9c27b0',
       lineWidth: 2,
       priceScaleId: 'rsi',
     });
@@ -501,7 +498,6 @@
       title: '45.00'
     });
 
-    // --- CONTINUOUS RSI CALCULATION ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
@@ -531,7 +527,7 @@
 
     let allGeneratedSignals = [];
 
-    // --- UT BOT ENGINE (STRICT 1-TO-1 MARKER AND CARD SYNC) ---
+    // UT BOT ENGINE WITH SYNCHRONIZED BUY & SELL ARROWS
     function calculateUTBot(candles, key = 1.2, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -611,7 +607,6 @@
       return { markers, stopLine, signals };
     }
 
-    // --- ACCURATE DYNAMIC CARD RENDERING ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -628,7 +623,6 @@
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
 
-          // Buy box pinned below candle low; Sell box pinned above candle high
           const topPos = isBuy 
             ? Math.min(y + 24, containerHeight - 165)
             : Math.max(y - 128, 15);
@@ -652,8 +646,7 @@
       });
     }
 
-    // --- SESSION DATA ENGINE (YOUR WORKING ANCHOR PROFILE) ---
-    let activeIntervalSec = 300; // 5m
+    let activeIntervalSec = 300;
     let activeBarsCount = 75;
     let globalCandles = [];
     let tickTimer = null;
@@ -705,7 +698,6 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      // Shaded band between 45 and 55
       rsiBgShade.setData(rsiBgData);
       rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
 
@@ -725,7 +717,7 @@
       document.getElementById('val-open').innerText = "22,690.45";
       document.getElementById('val-high').innerText = "22,717.65";
       document.getElementById('val-low').innerText = "22,546.30";
-      document.getElementById('val-close').innerText = ltp.toFixed(2);
+      document.getElementById('val-close').innerText = last.close.toFixed(2);
       document.getElementById('val-vwap').innerText = vwapData[vwapData.length - 1].value;
       document.getElementById('val-ema').innerText = emaData[emaData.length - 1].value;
       document.getElementById('val-ut').innerText = ut.stopLine[ut.stopLine.length - 1]?.value || '--';
@@ -781,7 +773,6 @@
       }, 3000);
     }
 
-    // --- TIMEFRAMES ---
     document.querySelectorAll('#tf-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#tf-group .btn').forEach(b => b.classList.remove('active'));
@@ -794,7 +785,6 @@
       });
     });
 
-    // --- RANGES ---
     document.querySelectorAll('#range-group .btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#range-group .btn').forEach(b => b.classList.remove('active'));
@@ -808,12 +798,10 @@
       });
     });
 
-    // --- REFRESH ---
     document.getElementById('btn-refresh').addEventListener('click', () => {
       runEngine();
     });
 
-    // --- ROTATE / FULLSCREEN ---
     document.getElementById('btn-rotate').addEventListener('click', async () => {
       try {
         if (!document.fullscreenElement) {
@@ -853,7 +841,6 @@
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateAllSignalLabels());
 
-    // STARTUP
     runEngine();
     setTimeout(handleResize, 100);
   </script>
