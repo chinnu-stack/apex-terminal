@@ -778,27 +778,52 @@
       }
     }
 
-  function initStandaloneEngine() {
+ // --- OPTIMIZED STANDALONE ENGINE: Market Hours + Hardware Smoothness ---
+function isIndianMarketOpen() {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffset);
+  
+  const day = istDate.getDay();
+  if (day === 0 || day === 6) return false;
+
+  const hours = istDate.getHours();
+  const minutes = istDate.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+
+  return timeInMinutes >= 555 && timeInMinutes <= 930;
+}
+
+let tickTimer = null;
+
+function initStandaloneEngine() {
   const badge = document.getElementById('feed-status');
+  const marketOpen = isIndianMarketOpen();
+
   if (badge) {
-    badge.innerHTML = '<div class="live-dot" style="background:#00f3ff"></div> ENGINE ONLINE';
-    badge.style.color = '#00f3ff';
+    if (marketOpen) {
+      badge.innerHTML = '<div class="live-dot" style="background:#00f3ff"></div> ENGINE ONLINE';
+      badge.style.color = '#00f3ff';
+    } else {
+      badge.innerHTML = '<div class="live-dot" style="background:#f23645"></div> MARKET CLOSED';
+      badge.style.color = '#f23645';
+    }
   }
 
   let currentPrice = 25000.0;
   const now = Math.floor(Date.now() / 1000);
   const intervalSeconds = 300;
-  const totalCandles = 80;
+  const totalCandles = 60;
   
   let simulatedCandles = [];
   let t = now - (totalCandles * intervalSeconds);
 
   for (let i = 0; i < totalCandles; i++) {
-    const delta = (Math.random() - 0.49) * 30;
+    const delta = (Math.random() - 0.49) * 25;
     const open = currentPrice;
     const close = Math.round((open + delta) * 100) / 100;
-    const high = Math.round((Math.max(open, close) + Math.random() * 15) * 100) / 100;
-    const low = Math.round((Math.min(open, close) - Math.random() * 15) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + Math.random() * 12) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - Math.random() * 12) * 100) / 100;
     
     simulatedCandles.push({
       time: t,
@@ -806,7 +831,7 @@
       high: high,
       low: low,
       close: close,
-      volume: Math.floor(Math.random() * 500) + 100
+      volume: Math.floor(Math.random() * 400) + 100
     });
     currentPrice = close;
     t += intervalSeconds;
@@ -820,23 +845,57 @@
     candleSeries.setData(candles);
   }
 
+  if (tickTimer) clearInterval(tickTimer);
+
+  if (!marketOpen) return;
+
   let lastBar = { ...candles[candles.length - 1] };
-  setInterval(() => {
-    const tick = (Math.random() - 0.49) * 6;
+  tickTimer = setInterval(() => {
+    if (!isIndianMarketOpen()) {
+      if (badge) {
+        badge.innerHTML = '<div class="live-dot" style="background:#f23645"></div> MARKET CLOSED';
+        badge.style.color = '#f23645';
+      }
+      clearInterval(tickTimer);
+      return;
+    }
+
+    const tick = (Math.random() - 0.49) * 5;
     lastBar.close = Math.round((lastBar.close + tick) * 100) / 100;
     if (lastBar.close > lastBar.high) lastBar.high = lastBar.close;
     if (lastBar.close < lastBar.low) lastBar.low = lastBar.close;
 
-    if (typeof candleSeries !== 'undefined' && candleSeries) {
-      candleSeries.update(lastBar);
-    }
-    if (typeof updateOverlay === 'function') {
-      updateOverlay();
-    }
-  }, 2000);
+    window.requestAnimationFrame(() => {
+      if (typeof candleSeries !== 'undefined' && candleSeries) {
+        candleSeries.update(lastBar);
+      }
+      if (typeof updateOverlay === 'function') {
+        updateOverlay();
+      }
+    });
+  }, 3000);
 }
 
-window.addEventListener('DOMContentLoaded', initStandaloneEngine);
+function handleOrientationAndResize() {
+  const container = document.getElementById('chart') || document.body;
+  if (typeof chart !== 'undefined' && chart && container) {
+    chart.applyOptions({
+      width: container.clientWidth || window.innerWidth,
+      height: (container.clientHeight || window.innerHeight) - 70
+    });
+    chart.timeScale().fitContent();
+  }
+}
+
+window.addEventListener('resize', handleOrientationAndResize);
+window.addEventListener('orientationchange', () => {
+  setTimeout(handleOrientationAndResize, 200);
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  initStandaloneEngine();
+  handleOrientationAndResize();
+});
 initStandaloneEngine();
 
     document.querySelectorAll('.btn-tab').forEach(function(btn) {
