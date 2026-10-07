@@ -195,7 +195,7 @@
       font-weight: 600;
     }
 
-    /* CHART WRAPPER */
+    /* CHART WRAPPER & INDIVIDUAL FLOATING LABELS */
     #chart-wrapper {
       position: relative;
       flex: 1 1 auto;
@@ -209,47 +209,67 @@
       height: 100%;
     }
 
-    /* PINNED HUD TRADE SIGNAL CARD */
-    #hud-panel {
+    #label-layer {
       position: absolute;
-      top: 10px;
-      right: 65px;
-      background: rgba(19, 23, 34, 0.92);
-      border-radius: 6px;
-      padding: 8px 12px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      line-height: 1.45;
-      color: #d1d4dc;
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
-      z-index: 8;
+      z-index: 6;
+      overflow: hidden;
+    }
+
+    .trade-setup-card {
+      position: absolute;
+      background: rgba(22, 26, 37, 0.94);
+      border-radius: 5px;
+      padding: 6px 9px;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      line-height: 1.35;
+      color: #d1d4dc;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 6;
       border: 1px solid var(--border);
-      min-width: 175px;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(3px);
+      transition: opacity 0.1s ease;
     }
 
-    #hud-panel.buy {
-      border-top: 3px solid var(--accent-green);
+    .trade-setup-card.buy {
+      border-top: 2px solid var(--accent-green);
     }
 
-    #hud-panel.sell {
-      border-top: 3px solid var(--accent-red);
+    .trade-setup-card.sell {
+      border-top: 2px solid var(--accent-red);
     }
 
-    .hud-title {
+    .card-title {
       font-weight: 700;
-      font-size: 11px;
-      margin-bottom: 4px;
+      font-size: 9px;
+      margin-bottom: 3px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 4px;
     }
 
-    .hud-row {
+    .trade-setup-card.buy .card-title { color: var(--accent-green); }
+    .trade-setup-card.sell .card-title { color: var(--accent-red); }
+
+    .card-row {
       display: flex;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
+    }
+
+    .card-row span:first-child {
+      color: var(--text-muted);
+    }
+
+    .card-row strong {
+      color: #fff;
     }
 
     /* BOTTOM BAR */
@@ -283,11 +303,9 @@
       #chart-wrapper {
         height: calc(100vh - 66px);
       }
-      #hud-panel {
-        top: 6px;
-        right: 60px;
-        padding: 4px 8px;
-        font-size: 9px;
+      .trade-setup-card {
+        padding: 4px 6px;
+        font-size: 8px;
       }
       .bottom-bar {
         min-height: 24px;
@@ -322,7 +340,7 @@
     </div>
   </header>
 
-  <!-- TICKER STATS BAR (WITH INDIA VIX) -->
+  <!-- TICKER STATS BAR -->
   <div class="ticker-bar">
     <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">25,000.00</span></span>
     <span class="vix-tag">INDIA VIX: <span id="val-vix">13.42 (-1.8%)</span></span>
@@ -335,21 +353,10 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & PINNED HUD -->
+  <!-- CHART & LABEL OVERLAY -->
   <div id="chart-wrapper">
     <div id="chart"></div>
-    <div id="hud-panel" class="buy">
-      <div class="hud-title">
-        <span id="hud-type" style="color:var(--accent-green)">▲ BUY ACTIVE</span>
-        <span id="hud-time">--</span>
-      </div>
-      <div class="hud-row"><span>Entry:</span><strong id="hud-entry">--</strong></div>
-      <div class="hud-row"><span>SL (UT):</span><span id="hud-sl">--</span></div>
-      <div class="hud-row"><span>Target 1:</span><span id="hud-t1">--</span></div>
-      <div class="hud-row"><span>Target 2:</span><span id="hud-t2">--</span></div>
-      <div class="hud-row"><span>VWAP Bias:</span><span id="hud-vwap">Above</span></div>
-      <div class="hud-row"><span>HTF Trend:</span><span id="hud-htf">Bullish</span></div>
-    </div>
+    <div id="label-layer"></div>
   </div>
 
   <!-- BOTTOM BAR -->
@@ -388,6 +395,7 @@
 
     // --- CHART INITIALIZATION ---
     const chartContainer = document.getElementById('chart');
+    const labelLayer = document.getElementById('label-layer');
 
     const chart = LightweightCharts.createChart(chartContainer, {
       layout: {
@@ -409,7 +417,7 @@
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.08, bottom: 0.28 },
+        scaleMargins: { top: 0.08, bottom: 0.26 },
       }
     });
 
@@ -440,22 +448,45 @@
       priceLineVisible: false,
     });
 
-    // Sub-pane: Continuous RSI (Wilder's RMA 14)
+    // --- RSI PANE (ISOLATED BOTTOM SCALE: 45 LOWER, 55 UPPER, LIGHT RED FILL) ---
+    chart.priceScale('rsi').applyOptions({
+      scaleMargins: { top: 0.80, bottom: 0.02 },
+      borderColor: '#363c4e',
+    });
+
+    // Light-red tinted area between 45 and 55
+    const rsiBgAreaSeries = chart.addAreaSeries({
+      priceScaleId: 'rsi',
+      topColor: 'rgba(242, 54, 69, 0.16)',
+      bottomColor: 'rgba(242, 54, 69, 0.16)',
+      lineColor: 'rgba(242, 54, 69, 0.50)',
+      lineWidth: 1,
+      priceLineVisible: false,
+    });
+
     const rsiSeries = chart.addLineSeries({
       color: '#9c27b0',
       lineWidth: 2,
       priceScaleId: 'rsi',
     });
 
-    chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.78, bottom: 0.02 },
-      borderColor: '#363c4e',
+    rsiSeries.createPriceLine({
+      price: 55,
+      color: '#f23645',
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: '55.00'
     });
 
-    rsiSeries.createPriceLine({ price: 70, color: '#f23645', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OB 70' });
-    rsiSeries.createPriceLine({ price: 30, color: '#089981', lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: 'OS 30' });
+    rsiSeries.createPriceLine({
+      price: 45,
+      color: '#089981',
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: '45.00'
+    });
 
-    // --- CONTINUOUS RSI ENGINE ---
+    // --- CONTINUOUS RSI MATH ---
     function calculateRSI(candles, period = 14) {
       if (candles.length < period + 1) return [];
       let gains = 0, losses = 0;
@@ -483,11 +514,13 @@
       return rsiData;
     }
 
-    // --- UT BOT ENGINE (ATR Trailing Alerts + Clean Native Markers) ---
+    let allGeneratedSignals = [];
+
+    // --- UT BOT ENGINE (ATR Trailing Alerts + Detailed Signal Cards) ---
     function calculateUTBot(candles, key = 1, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
-      let lastSignal = null;
+      let signals = [];
       let trailingStop = candles[0].close;
       let position = 0;
 
@@ -511,15 +544,17 @@
               shape: 'arrowUp',
               text: 'BUY',
             });
-            lastSignal = {
+            signals.push({
+              id: 'sig-' + candles[i].time,
               type: 'BUY',
+              time: candles[i].time,
               price: c,
               sl: parseFloat((c - nLoss).toFixed(2)),
               t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
               t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
-              vwapRel: 'Above VWAP',
-              htf: 'Bullish'
-            };
+              vwapCheck: 'Above VWAP (Strong)',
+              htfTrend: 'Bullish (Aligned ✅)'
+            });
           }
         } else {
           trailingStop = Math.min(trailingStop, c + nLoss);
@@ -532,43 +567,67 @@
               shape: 'arrowDown',
               text: 'SELL',
             });
-            lastSignal = {
+            signals.push({
+              id: 'sig-' + candles[i].time,
               type: 'SELL',
+              time: candles[i].time,
               price: c,
               sl: parseFloat((c + nLoss).toFixed(2)),
               t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
               t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
-              vwapRel: 'Below VWAP',
-              htf: 'Bearish'
-            };
+              vwapCheck: 'Below VWAP (Strong)',
+              htfTrend: 'Bearish (Aligned ✅)'
+            });
           }
         }
 
         stopLine.push({ time: candles[i].time, value: parseFloat(trailingStop.toFixed(2)) });
       }
 
-      return { markers, stopLine, lastSignal };
+      return { markers, stopLine, signals };
     }
 
-    // --- HUD SIGNAL BOX UPDATE ---
-    function updateHUD(signal) {
-      if (!signal) return;
-      const hud = document.getElementById('hud-panel');
-      const hudType = document.getElementById('hud-type');
+    // --- RENDER DYNAMIC LABEL CARDS ANCHORED TO EACH SIGNAL CANDLE ---
+    function updateAllSignalLabels() {
+      labelLayer.innerHTML = '';
+      if (!allGeneratedSignals.length) return;
 
-      hud.className = signal.type.toLowerCase();
-      hudType.innerText = signal.type === 'BUY' ? '▲ BUY ACTIVE' : '▼ SELL ACTIVE';
-      hudType.style.color = signal.type === 'BUY' ? 'var(--accent-green)' : 'var(--accent-red)';
+      const containerWidth = chartContainer.clientWidth;
+      const containerHeight = chartContainer.clientHeight;
 
-      document.getElementById('hud-entry').innerText = signal.price.toFixed(2);
-      document.getElementById('hud-sl').innerText = signal.sl.toFixed(2);
-      document.getElementById('hud-t1').innerText = signal.t1.toFixed(2);
-      document.getElementById('hud-t2').innerText = signal.t2.toFixed(2);
-      document.getElementById('hud-vwap').innerText = signal.vwapRel;
-      document.getElementById('hud-htf').innerText = signal.htf;
+      allGeneratedSignals.forEach(sig => {
+        const x = chart.timeScale().timeToCoordinate(sig.time);
+        const y = candleSeries.priceToCoordinate(sig.price);
+
+        // Keep cards strictly visible when in chart bounds
+        if (x !== null && y !== null && x > 20 && x < (containerWidth - 110)) {
+          const card = document.createElement('div');
+          card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
+          const isBuy = sig.type === 'BUY';
+
+          // Place Buy setup boxes below the arrow and Sell setup boxes above the arrow
+          const topPos = isBuy ? Math.min(y + 22, containerHeight - 165) : Math.max(y - 125, 20);
+          const leftPos = Math.max(x - 55, 10);
+
+          card.style.left = `${leftPos}px`;
+          card.style.top = `${topPos}px`;
+
+          card.innerHTML = `
+            <div class="card-title">● ${isBuy ? 'BUY SETUP CONFIRMED' : 'SELL SETUP CONFIRMED'}</div>
+            <div class="card-row"><span>Entry:</span><strong>${sig.price.toFixed(2)}</strong></div>
+            <div class="card-row"><span>SL (UT Line):</span><span>${sig.sl.toFixed(2)}</span></div>
+            <div class="card-row"><span>Target 1 (1:1.5):</span><span>${sig.t1.toFixed(2)}</span></div>
+            <div class="card-row"><span>Target 2 (1:2.5):</span><span>${sig.t2.toFixed(2)}</span></div>
+            <div class="card-row"><span>VWAP Check:</span><span>${sig.vwapCheck}</span></div>
+            <div class="card-row"><span>HTF Trend:</span><span>${sig.htfTrend}</span></div>
+          `;
+
+          labelLayer.appendChild(card);
+        }
+      });
     }
 
-    // --- SESSION DATA GENERATOR ---
+    // --- SESSION DATA GENERATOR PINNED TO 09:15 IST ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
@@ -577,16 +636,17 @@
     function generateMarketAlignedCandles() {
       const now = new Date();
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
-      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // Pinned to 09:15 AM
+      const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60); // 09:15 AM
 
       let currentPrice = 25010.0;
       let cData = [];
       let emaData = [];
       let vwapData = [];
+      let rsiBgData = [];
       let cumVol = 0, cumVolPrice = 0;
 
       for (let i = 0; i < activeBarsCount; i++) {
-        const delta = (Math.random() - 0.49) * 20;
+        const delta = (Math.random() - 0.49) * 22;
         const open = currentPrice;
         const close = Math.round((open + delta) * 100) / 100;
         const high = Math.round((Math.max(open, close) + Math.random() * 8) * 100) / 100;
@@ -604,6 +664,9 @@
         if (i > 0) ema = (close * 0.095) + (emaData[i - 1].value * 0.905);
         emaData.push({ time: barTime, value: parseFloat(ema.toFixed(2)) });
 
+        // Fixed Upper 55 value for shaded RSI background area
+        rsiBgData.push({ time: barTime, value: 55 });
+
         currentPrice = close;
       }
 
@@ -613,15 +676,18 @@
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
+      // Shaded RSI background (upper 55 threshold with baseline down to 45)
+      rsiBgAreaSeries.setData(rsiBgData);
+      rsiBgAreaSeries.applyOptions({ baseValue: { type: 'price', price: 45 } });
+
       const rsiPoints = calculateRSI(globalCandles);
       rsiSeries.setData(rsiPoints);
 
       const ut = calculateUTBot(globalCandles);
       candleSeries.setMarkers(ut.markers);
       stopSeries.setData(ut.stopLine);
-      updateHUD(ut.lastSignal);
+      allGeneratedSignals = ut.signals;
 
-      // India VIX generation
       const baseVix = 13.40 + (Math.random() * 0.2 - 0.1);
       document.getElementById('val-vix').innerText = `${baseVix.toFixed(2)} (-1.4%)`;
 
@@ -636,6 +702,7 @@
       document.getElementById('val-ut').innerText = ut.stopLine[ut.stopLine.length - 1]?.value || '--';
 
       chart.timeScale().fitContent();
+      setTimeout(updateAllSignalLabels, 100);
     }
 
     function runEngine() {
@@ -679,6 +746,7 @@
           document.getElementById('val-high').innerText = activeBar.high.toFixed(2);
           document.getElementById('val-low').innerText = activeBar.low.toFixed(2);
           document.getElementById('val-close').innerText = activeBar.close.toFixed(2);
+          updateAllSignalLabels();
         });
       }, 3000);
     }
@@ -747,11 +815,13 @@
           height: container.clientHeight,
         });
         chart.timeScale().fitContent();
+        updateAllSignalLabels();
       }
     }
 
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateAllSignalLabels());
 
     // STARTUP
     runEngine();
