@@ -243,7 +243,7 @@
       font-size: 8px;
       line-height: 1.35;
       color: #d1d4dc;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.75);
       pointer-events: none;
       white-space: nowrap;
       z-index: 6;
@@ -407,7 +407,7 @@
       return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
     }
 
-    // --- INITIALIZE CHART (FULL VERTICAL PROPORTIONS) ---
+    // --- INITIALIZE FULL-HEIGHT CHART ---
     const chartContainer = document.getElementById('chart');
     const labelLayer = document.getElementById('label-layer');
 
@@ -433,7 +433,7 @@
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.10, bottom: 0.10 }, // Clean 10% margins top & bottom
+        scaleMargins: { top: 0.12, bottom: 0.12 },
       }
     });
 
@@ -466,7 +466,7 @@
 
     let allGeneratedSignals = [];
 
-    // --- UT BOT ENGINE (CLEAN BUY & SELL ARROWS + METRICS) ---
+    // --- UT BOT ENGINE (CLEAN BUY & SELL ARROWS WITH NO OPPOSITE CLASHES) ---
     function calculateUTBot(candles, key = 1.2, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -547,6 +547,8 @@
     }
 
     // --- ACCURATE SIGNAL CARD POSITIONING ---
+    // BUY: Arrow is below candle low -> Card placed directly BELOW the Buy label
+    // SELL: Arrow is above candle high -> Card placed directly ABOVE the Sell label
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
@@ -556,17 +558,21 @@
 
       allGeneratedSignals.forEach(sig => {
         const x = chart.timeScale().timeToCoordinate(sig.time);
-        const y = candleSeries.priceToCoordinate(sig.price);
+        const isBuy = sig.type === 'BUY';
+        // Base coordinates from the candle extremes (low for BUY, high for SELL)
+        const yRefPrice = isBuy ? sig.low : sig.high;
+        const y = candleSeries.priceToCoordinate(yRefPrice);
 
         if (x !== null && y !== null && x > 25 && x < (containerWidth - 110)) {
           const card = document.createElement('div');
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
-          const isBuy = sig.type === 'BUY';
 
-          // Proper clearance so the arrows and labels stay visible
+          // Extra spacing to give clearance to the marker text:
+          // BUY: Arrow + text sits ~24px below candle low, so card starts 42px below
+          // SELL: Arrow + text sits ~24px above candle high, so card ends 42px above (top = y - 42 - cardHeight)
           const topPos = isBuy 
-            ? Math.min(y + 30, containerHeight - 145)
-            : Math.max(y - 135, 12);
+            ? Math.min(y + 42, containerHeight - 145)
+            : Math.max(y - 170, 12);
           const leftPos = Math.max(x - 55, 10);
 
           card.style.left = `${leftPos}px`;
@@ -587,7 +593,7 @@
       });
     }
 
-    // --- INTRADAY SESSION GENERATOR ---
+    // --- YOUR EXACT WORKING INTRADAY SESSION GENERATOR ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
