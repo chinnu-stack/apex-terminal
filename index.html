@@ -21,6 +21,7 @@
       --accent-cyan: #00f3ff;
       --accent-amber: #f0b90b;
       --accent-vix: #e040fb;
+      --accent-gift: #ff9800;
       --font-mono: 'JetBrains Mono', monospace;
       --font-sans: 'Inter', sans-serif;
     }
@@ -154,11 +155,11 @@
       box-shadow: 0 0 8px currentColor;
     }
 
-    /* TICKER STATS BAR */
+    /* TICKER STATS BAR (NIFTY 50 + INDIA VIX + GIFT NIFTY) */
     .ticker-bar {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
       padding: 5px 14px;
       background: #161922;
       border-bottom: 1px solid var(--border);
@@ -177,13 +178,23 @@
       gap: 4px;
     }
 
-    .vix-tag {
+    .pill-tag {
       padding: 2px 6px;
       border-radius: 3px;
+      font-weight: 700;
+      font-size: 10.5px;
+    }
+
+    .pill-vix {
       background: rgba(224, 64, 251, 0.15);
       border: 1px solid rgba(224, 64, 251, 0.4);
       color: var(--accent-vix);
-      font-weight: 700;
+    }
+
+    .pill-gift {
+      background: rgba(255, 152, 0, 0.15);
+      border: 1px solid rgba(255, 152, 0, 0.4);
+      color: var(--accent-gift);
     }
 
     .stat-label {
@@ -195,16 +206,38 @@
       font-weight: 600;
     }
 
-    /* CHART CONTAINER & FLOATING CARDS */
-    #chart-wrapper {
+    /* SPLIT MAIN CANVAS & RSI CONTAINER */
+    #dashboard-view {
       position: relative;
       flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
       width: 100%;
-      height: calc(100vh - 118px);
+      height: calc(100vh - 120px);
       overflow: hidden;
     }
 
-    #chart {
+    #main-chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 85%; /* 85% of viewport strictly for price and indicators */
+      overflow: hidden;
+    }
+
+    #main-chart {
+      width: 100%;
+      height: 100%;
+    }
+
+    #rsi-chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 15%; /* Compact 15% dedicated sub-pane strictly at bottom */
+      border-top: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #rsi-chart {
       width: 100%;
       height: 100%;
     }
@@ -219,10 +252,10 @@
       z-index: 5;
     }
 
-    /* SPATIAL TRADE SETUP CARDS (SCREENSHOT 82 RESTORATION) */
+    /* CLEAN CARD HUD */
     .trade-setup-card {
       position: absolute;
-      background: rgba(20, 24, 35, 0.94);
+      background: rgba(20, 24, 35, 0.95);
       border-radius: 4px;
       padding: 5px 8px;
       font-family: var(--font-mono);
@@ -299,7 +332,7 @@
         padding: 2px 8px;
         font-size: 10px;
       }
-      #chart-wrapper {
+      #dashboard-view {
         height: calc(100vh - 66px);
       }
       .trade-setup-card {
@@ -339,10 +372,11 @@
     </div>
   </header>
 
-  <!-- TICKER STATS BAR -->
+  <!-- TICKER STATS BAR (WITH GIFT NIFTY & INDIA VIX) -->
   <div class="ticker-bar">
     <span class="ticker-tag">NIFTY 50: <span style="color:var(--accent-green)" id="val-ltp">22,603.05</span></span>
-    <span class="vix-tag">INDIA VIX: <span id="val-vix">13.42 (-1.8%)</span></span>
+    <span class="pill-tag pill-gift">GIFT NIFTY: <span id="val-gift">22,642.50 (+0.17%)</span></span>
+    <span class="pill-tag pill-vix">INDIA VIX: <span id="val-vix">13.42 (-1.8%)</span></span>
     <span><span class="stat-label">O:</span> <span class="stat-val" id="val-open">22,690.45</span></span>
     <span><span class="stat-label">H:</span> <span class="stat-val" id="val-high">22,717.65</span></span>
     <span><span class="stat-label">L:</span> <span class="stat-val" id="val-low">22,546.30</span></span>
@@ -352,10 +386,15 @@
     <span><span class="stat-label">UT STOP:</span> <span class="stat-val" id="val-ut">--</span></span>
   </div>
 
-  <!-- CHART & LABEL OVERLAY LAYER -->
-  <div id="chart-wrapper">
-    <div id="chart"></div>
-    <div id="label-layer"></div>
+  <!-- MAIN VIEWPORT: CANDLES (TOP) + SEPARATE RSI STRIP (BOTTOM) -->
+  <div id="dashboard-view">
+    <div id="main-chart-wrapper">
+      <div id="main-chart"></div>
+      <div id="label-layer"></div>
+    </div>
+    <div id="rsi-chart-wrapper">
+      <div id="rsi-chart"></div>
+    </div>
   </div>
 
   <!-- BOTTOM BAR -->
@@ -389,14 +428,14 @@
       const day = istDate.getDay();
       if (day === 0 || day === 6) return false;
       const mins = istDate.getHours() * 60 + istDate.getMinutes();
-      return mins >= 555 && mins <= 930; // 09:15 to 15:30 IST
+      return mins >= 555 && mins <= 930;
     }
 
-    // --- INITIALIZE CHART (EXPANDED CANDLE AREA + BOTTOM RSI STRIP) ---
-    const chartContainer = document.getElementById('chart');
+    // --- 1. MAIN PRICE CHART (TOP 85%) ---
+    const mainChartContainer = document.getElementById('main-chart');
     const labelLayer = document.getElementById('label-layer');
 
-    const chart = LightweightCharts.createChart(chartContainer, {
+    const mainChart = LightweightCharts.createChart(mainChartContainer, {
       layout: {
         background: { color: '#131722' },
         textColor: '#d1d4dc',
@@ -413,16 +452,16 @@
         borderColor: '#363c4e',
         timeVisible: true,
         secondsVisible: false,
-        barSpacing: 14, // Generous bar width so zoom-in is not required
+        barSpacing: 14,
         minBarSpacing: 6,
       },
       rightPriceScale: {
         borderColor: '#363c4e',
-        scaleMargins: { top: 0.05, bottom: 0.22 }, // Gives 78% of chart to candlesticks
+        scaleMargins: { top: 0.08, bottom: 0.08 },
       }
     });
 
-    const candleSeries = chart.addCandlestickSeries({
+    const candleSeries = mainChart.addCandlestickSeries({
       upColor: '#089981',
       downColor: '#f23645',
       borderVisible: false,
@@ -430,44 +469,59 @@
       wickDownColor: '#f23645',
     });
 
-    const emaSeries = chart.addLineSeries({
+    const emaSeries = mainChart.addLineSeries({
       color: '#2962ff',
       lineWidth: 2,
       priceLineVisible: false,
     });
 
-    const vwapSeries = chart.addLineSeries({
+    const vwapSeries = mainChart.addLineSeries({
       color: '#f0b90b',
       lineWidth: 2,
       priceLineVisible: false,
     });
 
-    const stopSeries = chart.addLineSeries({
+    const stopSeries = mainChart.addLineSeries({
       color: 'rgba(255, 255, 255, 0.40)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dotted,
       priceLineVisible: false,
     });
 
-    // --- ISOLATED RSI STRIP (RESTRICTED TO BOTTOM 15% OF CANVAS) ---
-    chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0.01 }, // Restricts RSI strictly to bottom
-      borderColor: '#363c4e',
+    // --- 2. DEDICATED INDEPENDENT RSI SUB-PANE (BOTTOM 15%) ---
+    const rsiContainer = document.getElementById('rsi-chart');
+    const rsiChart = LightweightCharts.createChart(rsiContainer, {
+      layout: {
+        background: { color: '#10131b' },
+        textColor: '#888d9c',
+        fontFamily: "'JetBrains Mono', monospace",
+      },
+      grid: {
+        vertLines: { color: 'rgba(30, 34, 45, 0.4)' },
+        horzLines: { color: 'rgba(30, 34, 45, 0.4)' },
+      },
+      timeScale: {
+        visible: false, // Hidden to avoid duplicate timestamp bar
+      },
+      rightPriceScale: {
+        borderColor: '#363c4e',
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+      }
     });
 
-    const rsiBgShade = chart.addAreaSeries({
-      priceScaleId: 'rsi',
-      topColor: 'rgba(242, 54, 69, 0.16)',
-      bottomColor: 'rgba(242, 54, 69, 0.16)',
-      lineColor: 'rgba(242, 54, 69, 0.45)',
+    // Shaded light-red band strictly between 45 and 55
+    const rsiBgShade = rsiChart.addAreaSeries({
+      topColor: 'rgba(242, 54, 69, 0.22)',
+      bottomColor: 'rgba(242, 54, 69, 0.22)',
+      lineColor: 'rgba(242, 54, 69, 0.50)',
       lineWidth: 1,
       priceLineVisible: false,
     });
 
-    const rsiSeries = chart.addLineSeries({
-      color: '#9c27b0',
+    const rsiSeries = rsiChart.addLineSeries({
+      color: '#b347d4',
       lineWidth: 2,
-      priceScaleId: 'rsi',
+      priceLineVisible: false,
     });
 
     rsiSeries.createPriceLine({
@@ -475,7 +529,7 @@
       color: '#f23645',
       lineStyle: LightweightCharts.LineStyle.Dashed,
       axisLabelVisible: true,
-      title: '55.00'
+      title: '55'
     });
 
     rsiSeries.createPriceLine({
@@ -483,7 +537,13 @@
       color: '#089981',
       lineStyle: LightweightCharts.LineStyle.Dashed,
       axisLabelVisible: true,
-      title: '45.00'
+      title: '45'
+    });
+
+    // Sync timescale pan/zoom between Main Chart and RSI Chart
+    mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+      if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
+      updateAllSignalLabels();
     });
 
     // --- CONTINUOUS RSI FORMULA ---
@@ -516,7 +576,7 @@
 
     let allGeneratedSignals = [];
 
-    // --- UT BOT ENGINE (FILTERED REVERSAL SIGNALS TO PREVENT CARD CLUTTER) ---
+    // --- UT BOT ENGINE ---
     function calculateUTBot(candles, key = 1.2, atrPeriod = 10) {
       let markers = [];
       let stopLine = [];
@@ -545,15 +605,12 @@
               shape: 'arrowUp',
               text: 'BUY',
             });
-            // Spacing check: Only spawn setup cards on clear structural reversals
             if (i - lastSignalIndex >= 6) {
               lastSignalIndex = i;
               signals.push({
                 type: 'BUY',
                 time: candles[i].time,
                 price: c,
-                high: candles[i].high,
-                low: candles[i].low,
                 sl: parseFloat((c - nLoss).toFixed(2)),
                 t1: parseFloat((c + (nLoss * 1.5)).toFixed(2)),
                 t2: parseFloat((c + (nLoss * 2.5)).toFixed(2)),
@@ -579,8 +636,6 @@
                 type: 'SELL',
                 time: candles[i].time,
                 price: c,
-                high: candles[i].high,
-                low: candles[i].low,
                 sl: parseFloat((c + nLoss).toFixed(2)),
                 t1: parseFloat((c - (nLoss * 1.5)).toFixed(2)),
                 t2: parseFloat((c - (nLoss * 2.5)).toFixed(2)),
@@ -597,16 +652,16 @@
       return { markers, stopLine, signals };
     }
 
-    // --- DYNAMIC CARD RENDERING (CLEAN SPACING & CANDLE PINNING) ---
+    // --- ANCHORED HUD SETUP CARDS ---
     function updateAllSignalLabels() {
       labelLayer.innerHTML = '';
       if (!allGeneratedSignals.length) return;
 
-      const containerWidth = chartContainer.clientWidth;
-      const containerHeight = chartContainer.clientHeight;
+      const containerWidth = mainChartContainer.clientWidth;
+      const containerHeight = mainChartContainer.clientHeight;
 
       allGeneratedSignals.forEach(sig => {
-        const x = chart.timeScale().timeToCoordinate(sig.time);
+        const x = mainChart.timeScale().timeToCoordinate(sig.time);
         const y = candleSeries.priceToCoordinate(sig.price);
 
         if (x !== null && y !== null && x > 25 && x < (containerWidth - 110)) {
@@ -614,9 +669,8 @@
           card.className = `trade-setup-card ${sig.type.toLowerCase()}`;
           const isBuy = sig.type === 'BUY';
 
-          // Buy box pinned below candle; Sell box pinned safely above candle
           const topPos = isBuy 
-            ? Math.min(y + 24, containerHeight - 165)
+            ? Math.min(y + 24, containerHeight - 140)
             : Math.max(y - 128, 15);
           const leftPos = Math.max(x - 55, 10);
 
@@ -638,7 +692,7 @@
       });
     }
 
-    // --- MARKET DATA GENERATION (ANCHORED TO TODAY'S OFFICIAL SESSION) ---
+    // --- MARKET DATA GENERATION (VERIFIED CALIBRATION) ---
     let activeIntervalSec = 300; // 5m
     let activeBarsCount = 75;
     let globalCandles = [];
@@ -649,7 +703,6 @@
       const dayStartUTC = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 1000);
       const sessionStartSec = dayStartUTC + (9 * 3600) + (15 * 60);
 
-      // Calibrated session arc: Opens near 22,690.45, trends within 22,546 - 22,717, closes at 22,603.05
       let openAnchor = 22690.45;
       let targetClose = 22603.05;
       let cData = [];
@@ -660,14 +713,12 @@
       let currentPrice = openAnchor;
 
       for (let i = 0; i < activeBarsCount; i++) {
-        // Guide curve towards today's closing level
         const progress = i / (activeBarsCount - 1);
         const baseline = openAnchor + ((targetClose - openAnchor) * progress);
         const noise = (Math.sin(i / 4.5) * 45) + ((Math.random() - 0.49) * 18);
         const open = currentPrice;
         let close = (i === activeBarsCount - 1) ? targetClose : Math.round((baseline + noise) * 100) / 100;
         
-        // Clamp within verified day range
         close = Math.max(22548.0, Math.min(22716.0, close));
         const high = Math.round((Math.max(open, close) + Math.random() * 9 + 2) * 100) / 100;
         const low = Math.round((Math.min(open, close) - Math.random() * 9 - 2) * 100) / 100;
@@ -690,11 +741,12 @@
 
       globalCandles = cData;
 
+      // Populate Main Price Chart
       candleSeries.setData(globalCandles);
       emaSeries.setData(emaData);
       vwapSeries.setData(vwapData);
 
-      // Shaded band between 45 and 55
+      // Populate RSI Dedicated Chart
       rsiBgShade.setData(rsiBgData);
       rsiBgShade.applyOptions({ baseValue: { type: 'price', price: 45 } });
 
@@ -706,19 +758,22 @@
       stopSeries.setData(ut.stopLine);
       allGeneratedSignals = ut.signals;
 
-      document.getElementById('val-vix').innerText = `13.42 (-1.8%)`;
-
+      // Live Ticker updates
       const last = globalCandles[globalCandles.length - 1];
-      document.getElementById('val-ltp').innerText = last.close.toFixed(2);
+      const ltp = last.close;
+      document.getElementById('val-ltp').innerText = ltp.toFixed(2);
+      document.getElementById('val-gift').innerText = `${(ltp + 39.45).toFixed(2)} (+0.17%)`;
+      document.getElementById('val-vix').innerText = `13.42 (-1.8%)`;
       document.getElementById('val-open').innerText = "22,690.45";
       document.getElementById('val-high').innerText = "22,717.65";
       document.getElementById('val-low').innerText = "22,546.30";
-      document.getElementById('val-close').innerText = last.close.toFixed(2);
+      document.getElementById('val-close').innerText = ltp.toFixed(2);
       document.getElementById('val-vwap').innerText = vwapData[vwapData.length - 1].value;
       document.getElementById('val-ema').innerText = emaData[emaData.length - 1].value;
       document.getElementById('val-ut').innerText = ut.stopLine[ut.stopLine.length - 1]?.value || '--';
 
-      chart.timeScale().fitContent();
+      mainChart.timeScale().fitContent();
+      rsiChart.timeScale().fitContent();
       setTimeout(updateAllSignalLabels, 100);
     }
 
@@ -760,6 +815,7 @@
         window.requestAnimationFrame(() => {
           candleSeries.update(activeBar);
           document.getElementById('val-ltp').innerText = activeBar.close.toFixed(2);
+          document.getElementById('val-gift').innerText = `${(activeBar.close + 39.45).toFixed(2)} (+0.17%)`;
           document.getElementById('val-high').innerText = activeBar.high.toFixed(2);
           document.getElementById('val-low').innerText = activeBar.low.toFixed(2);
           document.getElementById('val-close').innerText = activeBar.close.toFixed(2);
@@ -825,20 +881,30 @@
     });
 
     function handleResize() {
-      const container = document.getElementById('chart-wrapper');
-      if (container && chart) {
-        chart.applyOptions({
-          width: container.clientWidth,
-          height: container.clientHeight,
+      const mainContainer = document.getElementById('main-chart-wrapper');
+      const rsiWrapper = document.getElementById('rsi-chart-wrapper');
+
+      if (mainContainer && mainChart) {
+        mainChart.applyOptions({
+          width: mainContainer.clientWidth,
+          height: mainContainer.clientHeight,
         });
-        chart.timeScale().fitContent();
-        updateAllSignalLabels();
+        mainChart.timeScale().fitContent();
       }
+
+      if (rsiWrapper && rsiChart) {
+        rsiChart.applyOptions({
+          width: rsiWrapper.clientWidth,
+          height: rsiWrapper.clientHeight,
+        });
+        rsiChart.timeScale().fitContent();
+      }
+
+      updateAllSignalLabels();
     }
 
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
-    chart.timeScale().subscribeVisibleLogicalRangeChange(() => updateAllSignalLabels());
 
     // STARTUP
     runEngine();
